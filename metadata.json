@@ -1,0 +1,7 @@
+{
+  "name": "AetherHealth Hospital Management Portal",
+  "description": "A modern, responsive hospital management portal built with React, TypeScript, and Tailwind CSS, featuring a dashboard, patient management, and appointment scheduling, all powered by Firebase.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
