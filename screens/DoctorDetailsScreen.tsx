@@ -9,7 +9,7 @@ import Select from '../components/ui/Select';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
 import { useToast } from '../hooks/useToast';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUser, faPhone, faEnvelope, faStethoscope, faTimes, faLock } from '@fortawesome/free-solid-svg-icons';
+import { faUser, faPhone, faEnvelope, faStethoscope, faTimes, faLock, faChevronLeft } from '@fortawesome/free-solid-svg-icons';
 import { db } from '../services/firebase';
 import PhotoCaptureInput from '../components/ui/PhotoCaptureInput';
 // FIX: Add MultiSelect to handle assigned locations.
@@ -302,6 +302,11 @@ const DoctorDetailsScreen: React.FC = () => {
 
     return (
         <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            <div className="mb-6 lg:col-span-3">
+                <Button variant="light" onClick={() => navigate(-1)}>
+                    <FontAwesomeIcon icon={faChevronLeft} className="mr-2" /> Back
+                </Button>
+            </div>
             {isResetModalOpen && doctor && (
                 <ResetPasswordModal 
                     userEmail={doctor.email}

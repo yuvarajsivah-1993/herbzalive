@@ -384,6 +384,8 @@ export interface NewStaffData {
   phone: string;
   address: Address;
   password?: string;
+  assignedLocations: string[];
+  roleName: 'staff' | 'admin';
 }
 
 export interface UserUpdateData {
@@ -391,6 +393,8 @@ export interface UserUpdateData {
     phone: string;
     address: Address;
     profilePhoto?: File | string | null;
+    roleName?: 'staff' | 'admin';
+    assignedLocations?: string[];
 }
 
 export interface Treatment {
@@ -1294,11 +1298,7 @@ export interface NewLoanData extends Omit<Loan, 'id' | 'hospitalId' | 'loanId' |
 
 export interface HospitalLocation {
     id: string;
-    hospitalId: string;
-    name: string;
-    address: Address;
-    phone: string;
-    email?: string;
+    status: 'active' | 'inactive';
 }
 
 export interface NewHospitalLocationData {
@@ -1306,6 +1306,7 @@ export interface NewHospitalLocationData {
     address: Address;
     phone: string;
     email?: string;
+    status?: 'active' | 'inactive';
 }
 
 export interface UpdateHospitalLocationData extends Partial<NewHospitalLocationData> {}
@@ -1426,7 +1427,7 @@ export interface AuthContextType {
   updateInvoicePaymentDetails: (invoiceId: string, payment: Payment) => Promise<void>;
   deleteInvoicePayment: (invoiceId: string, paymentId: string) => Promise<void>;
   // Expense Management (Transactional - not live state)
-  getExpenses: (startDate?: Date, endDate?: Date) => Promise<Expense[]>;
+  getExpenses: (locationId?: string, startDate?: Date, endDate?: Date, limitVal?: number, lastVisible?: firebase.firestore.QueryDocumentSnapshot | null) => Promise<{ expenses: Expense[]; lastVisible: firebase.firestore.QueryDocumentSnapshot | null; }>;
   addExpense: (data: NewExpenseData) => Promise<void>;
   getExpenseById: (expenseId: string) => Promise<Expense | null>;
   updateExpensePayment: (expenseId: string, payment: Omit<Payment, 'date' | 'id' | 'recordedBy'>) => Promise<void>;

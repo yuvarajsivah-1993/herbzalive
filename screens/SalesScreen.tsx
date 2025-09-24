@@ -17,6 +17,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Pagination from '../components/ui/Pagination';
 import DateRangePicker from '../components/ui/DateRangePicker';
 import { db } from '../services/firebase';
+import { usePaginationSettings } from '../hooks/usePaginationSettings';
 
 const currencySymbols: { [key: string]: string } = {
     USD: '$',
@@ -401,7 +402,7 @@ const SalesScreen: React.FC = () => {
     const [paymentStatusFilter, setPaymentStatusFilter] = useState<InvoiceStatus | 'all' | 'pending'>('all');
     
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(25);
+    const [itemsPerPage, setItemsPerPage] = usePaginationSettings();
 
     const currency = user?.hospitalCurrency || 'USD';
     const today = new Date();
@@ -666,7 +667,7 @@ const SalesScreen: React.FC = () => {
                     totalPages={totalPages}
                     onPageChange={setCurrentPage}
                     itemsPerPage={itemsPerPage}
-                    onItemsPerPageChange={(size) => { setItemsPerPage(size); setCurrentPage(1); }}
+                    onItemsPerPageChange={setItemsPerPage}
                     totalItems={filteredInvoices.length}
                     itemsOnPage={paginatedInvoices.length}
                 />

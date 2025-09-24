@@ -517,6 +517,7 @@ const AppointmentList: React.FC<{
 
 const ReservationsScreen: React.FC = () => {
     const { user, deleteAppointment, doctors: allDoctors, patients: allPatients, currentLocation } = useAuth();
+    console.log("ReservationsScreen - currentLocation (initial):", currentLocation);
     const { addToast } = useToast();
     const navigate = useNavigate();
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -562,10 +563,14 @@ const ReservationsScreen: React.FC = () => {
             end = addDays(getEndOfDay(currentDate), view === 'week' ? 6 : 0);
         }
 
-        const q = db.collection("appointments")
+        let q = db.collection("appointments")
             .where("hospitalId", "==", user.hospitalId)
             .where("start", ">=", start)
             .where("start", "<=", end);
+
+        if (currentLocation) {
+            q = q.where("locationId", "==", currentLocation.id);
+        }
 
         const unsubscribe = q.onSnapshot(snapshot => {
             const appointmentData = snapshot.docs.map(doc => ({
@@ -580,7 +585,7 @@ const ReservationsScreen: React.FC = () => {
         });
 
         return () => unsubscribe();
-    }, [currentDate, view, user, addToast, listDateRange]);
+    }, [currentDate, view, user, addToast, listDateRange, currentLocation]);
     
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {

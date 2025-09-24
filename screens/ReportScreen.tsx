@@ -11,6 +11,8 @@ import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import { useToast } from '../hooks/useToast';
 import Pagination from '../components/ui/Pagination';
+import { usePaginationPersistence } from '../hooks/usePaginationPersistence';
+import { db } from '../services/firebase';
 
 // --- TYPES & CONSTANTS ---
 type ReportType = 'pnl' | 'pos_sales' | 'treatment_sales' | 'purchase_sale' | 'stock_orders_by_vendor' | 'stock_returns_by_vendor' | 'payroll' | 'loan_report';
@@ -109,64 +111,99 @@ const ExportButton: React.FC<{ data: any[]; headers: { key: string; label: strin
 
 // --- REPORT COMPONENTS ---
 
-const ProfitAndLossReport: React.FC<{ startDate: Date, endDate: Date }> = ({ startDate, endDate }) => {
+const ProfitAndLossReport: React.FC<{ startDate: Date, endDate: Date, locationFilter: string }> = ({ startDate, endDate, locationFilter }) => {
     const { user, getInvoices, getPOSSales, getExpenses, getStocks, getPayrollRuns } = useAuth();
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<any>(null);
 
     useEffect(() => {
         const calculateReport = async () => {
+            if (!user || !user.hospitalId) {
+                setLoading(false);
+                return;
+            }
             setLoading(true);
-            const [invoices, posSales, expenses, stockItems, allPayrollRuns] = await Promise.all([
-                getInvoices(startDate, endDate),
-                getPOSSales(startDate, endDate),
-                getExpenses(startDate, endDate),
-                getStocks(),
-                // FIX: getPayrollRuns does not take date arguments. Filtering is done client-side.
-                getPayrollRuns(),
-            ]);
 
-            const payrollRuns = allPayrollRuns.filter(run => {
-                const runDate = run.runDate.toDate();
-                return runDate >= startDate && runDate <= endDate;
-            });
+            try { // Added try block
+                let invoiceQuery: firebase.firestore.Query = db.collection("invoices");
+                invoiceQuery = invoiceQuery.where("hospitalId", "==", user.hospitalId);
+                if (locationFilter !== 'all') {
+                    invoiceQuery = invoiceQuery.where("locationId", "==", locationFilter);
+                }
 
-            const stockCostMap = new Map(stockItems.map(item => {
-                const latestBatch = item.batches?.sort((a, b) => (b.expiryDate?.seconds || 0) - (a.expiryDate?.seconds || 0))[0];
-                return [item.id, latestBatch?.costPrice || 0];
-            }));
-            
-            const treatmentRevenue = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-            const posRevenue = posSales.filter(s => s.status === 'Completed').reduce((sum, sale) => sum + sale.totalAmount, 0);
-            const totalRevenue = treatmentRevenue + posRevenue;
+                let posSaleQuery: firebase.firestore.Query = db.collection("posSales");
+                posSaleQuery = posSaleQuery.where("hospitalId", "==", user.hospitalId);
+                if (locationFilter !== 'all') {
+                    posSaleQuery = posSaleQuery.where("locationId", "==", locationFilter);
+                }
 
-            const cogs = posSales.filter(s => s.status === 'Completed').reduce((sum, sale) => {
-                const saleCost = sale.items.reduce((itemSum, item) => itemSum + ((stockCostMap.get(item.stockItemId) || 0) * item.quantity), 0);
-                return sum + saleCost;
-            }, 0);
-            
-            const grossProfit = totalRevenue - cogs;
-            
-            const generalExpenses = expenses.reduce((sum, exp) => sum + exp.totalAmount, 0);
-            const payrollExpenses = payrollRuns
-                .filter(run => run.status === 'finalized')
-                .reduce((sum, run) => sum + run.totalAmount, 0);
-            const totalOperatingExpenses = generalExpenses + payrollExpenses;
+                let expenseQuery: firebase.firestore.Query = db.collection("expenses");
+                expenseQuery = expenseQuery.where("hospitalId", "==", user.hospitalId);
+                if (locationFilter !== 'all') {
+                    expenseQuery = expenseQuery.where("locationId", "==", locationFilter);
+                }
 
-            const netProfit = grossProfit - totalOperatingExpenses;
+                let payrollRunQuery: firebase.firestore.Query = db.collection("payrollRuns");
+                payrollRunQuery = payrollRunQuery.where("hospitalId", "==", user.hospitalId);
+                if (locationFilter !== 'all') {
+                    payrollRunQuery = payrollRunQuery.where("locationId", "==", locationFilter);
+                }
+                payrollRunQuery = payrollRunQuery.where("runDate", ">=", startDate).where("runDate", "<=", endDate);
 
-            setData({
-                totalRevenue, treatmentRevenue, posRevenue, cogs, grossProfit, 
-                generalExpenses, payrollExpenses, totalOperatingExpenses, netProfit,
-                expenseBreakdown: expenses.reduce((acc, curr) => {
-                    acc[curr.category] = (acc[curr.category] || 0) + curr.totalAmount;
-                    return acc;
-                }, {} as Record<string, number>),
-            });
-            setLoading(false);
+                const [invoicesSnapshot, posSalesSnapshot, expensesSnapshot, stockItems, payrollRunsSnapshot] = await Promise.all([
+                    invoiceQuery.where("createdAt", ">=", startDate).where("createdAt", "<=", endDate).get(),
+                    posSaleQuery.where("createdAt", ">=", startDate).where("createdAt", "<=", endDate).get(),
+                    expenseQuery.where("date", ">=", startDate).where("date", "<=", endDate).get(),
+                    getStocks(locationFilter),
+                    payrollRunQuery.get(),
+                ]);
+
+                const invoices = invoicesSnapshot.docs.map(doc => doc.data() as Invoice);
+                const posSales = posSalesSnapshot.docs.map(doc => doc.data() as POSSale);
+                const expenses = expensesSnapshot.docs.map(doc => doc.data() as Expense);
+                const payrollRuns = payrollRunsSnapshot.docs.map(doc => doc.data() as PayrollRun);
+
+                const stockCostMap = new Map(stockItems.map(item => {
+                    const latestBatch = item.batches?.sort((a, b) => (b.expiryDate?.seconds || 0) - (a.expiryDate?.seconds || 0))[0];
+                    return [item.id, latestBatch?.costPrice || 0];
+                }));
+                
+                const treatmentRevenue = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+                const posRevenue = posSales.filter(s => s.status === 'Completed').reduce((sum, sale) => sum + sale.totalAmount, 0);
+                const totalRevenue = treatmentRevenue + posRevenue;
+
+                const cogs = posSales.filter(s => s.status === 'Completed').reduce((sum, sale) => {
+                    const saleCost = sale.items.reduce((itemSum, item) => itemSum + ((stockCostMap.get(item.stockItemId) || 0) * item.quantity), 0);
+                    return sum + saleCost;
+                }, 0);
+                
+                const grossProfit = totalRevenue - cogs;
+                
+                const generalExpenses = expenses.reduce((sum, exp) => sum + exp.totalAmount, 0);
+                const payrollExpenses = payrollRuns
+                    .filter(run => run.status === 'finalized')
+                    .reduce((sum, run) => sum + run.totalAmount, 0);
+                const totalOperatingExpenses = generalExpenses + payrollExpenses;
+
+                const netProfit = grossProfit - totalOperatingExpenses;
+
+                setData({
+                    totalRevenue, treatmentRevenue, posRevenue, cogs, grossProfit, 
+                    generalExpenses, payrollExpenses, totalOperatingExpenses, netProfit,
+                    expenseBreakdown: expenses.reduce((acc, curr) => {
+                        acc[curr.category] = (acc[curr.category] || 0) + curr.totalAmount;
+                        return acc;
+                    }, {} as Record<string, number>),
+                });
+            } catch (error) { // Added catch block
+                console.error("Error calculating Profit and Loss report:", error);
+                setData(null); // Clear data on error
+            } finally { // Added finally block
+                setLoading(false);
+            }
         };
         calculateReport();
-    }, [startDate, endDate, getInvoices, getPOSSales, getExpenses, getStocks, getPayrollRuns]);
+    }, [startDate, endDate, getInvoices, getPOSSales, getExpenses, getStocks, getPayrollRuns, user, locationFilter]);
 
     if (loading) return <p className="text-center p-8">Generating report...</p>;
     if (!data) return <NoDataPlaceholder message="Could not generate profit and loss data." />;
@@ -198,7 +235,7 @@ const ProfitAndLossReport: React.FC<{ startDate: Date, endDate: Date }> = ({ sta
     );
 };
 
-const PayrollReport: React.FC<{ startDate: Date; endDate: Date }> = ({ startDate, endDate }) => {
+const PayrollReport: React.FC<{ startDate: Date; endDate: Date; locationFilter: string }> = ({ startDate, endDate, locationFilter }) => {
     const { user, getPayrollRuns, getEmployees } = useAuth();
     const [loading, setLoading] = useState(true);
     const [runs, setRuns] = useState<PayrollRun[]>([]);
@@ -209,13 +246,26 @@ const PayrollReport: React.FC<{ startDate: Date; endDate: Date }> = ({ startDate
         const fetchData = async () => {
             setLoading(true);
             try {
-                const [allRuns, allEmployees] = await Promise.all([
-                    getPayrollRuns(),
-                    getEmployees()
+                let payrollRunQuery: firebase.firestore.Query = db.collection('payrollRuns');
+                payrollRunQuery = payrollRunQuery.where('hospitalId', '==', user.hospitalId);
+                if (locationFilter !== 'all') {
+                    payrollRunQuery = payrollRunQuery.where('locationId', '==', locationFilter);
+                }
+
+                let employeesQuery: firebase.firestore.Query = db.collection('employees');
+                employeesQuery = employeesQuery.where('hospitalId', '==', user.hospitalId);
+                if (locationFilter !== 'all') {
+                    employeesQuery = employeesQuery.where('locationId', '==', locationFilter);
+                }
+
+                const [allRunsSnapshot, allEmployeesSnapshot] = await Promise.all([
+                    payrollRunQuery.get(),
+                    employeesQuery.get()
                 ]);
                 
-                setEmployees(allEmployees);
+                setEmployees(allEmployeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
 
+                const allRuns = allRunsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollRun));
                 const filteredRuns = allRuns.filter(run => {
                     if (run.status !== 'finalized') return false;
                     const [year, month] = run.period.split('-').map(Number);
@@ -232,7 +282,7 @@ const PayrollReport: React.FC<{ startDate: Date; endDate: Date }> = ({ startDate
             }
         };
         fetchData();
-    }, [startDate, endDate, getPayrollRuns, getEmployees]);
+    }, [startDate, endDate, getPayrollRuns, getEmployees, locationFilter]);
 
     const reportData = useMemo(() => {
         const finalizedRuns = runs;
@@ -434,7 +484,7 @@ const PayrollReport: React.FC<{ startDate: Date; endDate: Date }> = ({ startDate
     );
 };
 
-const LoanReport: React.FC<{ startDate: Date, endDate: Date }> = ({ startDate, endDate }) => {
+const LoanReport: React.FC<{ startDate: Date, endDate: Date, locationFilter: string }> = ({ startDate, endDate, locationFilter }) => {
     const { user, getLoans } = useAuth();
     const [loading, setLoading] = useState(true);
     const [loans, setLoans] = useState<Loan[]>([]);
@@ -447,7 +497,15 @@ const LoanReport: React.FC<{ startDate: Date, endDate: Date }> = ({ startDate, e
         const fetchData = async () => {
             setLoading(true);
             try {
-                const allLoans = await getLoans();
+                let loanQuery: firebase.firestore.Query = db.collection("loans");
+                loanQuery = loanQuery.where("hospitalId", "==", user.hospitalId);
+                if (locationFilter !== 'all') {
+                    loanQuery = loanQuery.where("locationId", "==", locationFilter);
+                }
+
+                const allLoansSnapshot = await loanQuery.get();
+                const allLoans = allLoansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Loan));
+
                 const filteredLoans = allLoans.filter(loan => {
                     const disbursementDate = loan.disbursementDate.toDate();
                     return disbursementDate >= startDate && disbursementDate <= endDate;
@@ -460,7 +518,7 @@ const LoanReport: React.FC<{ startDate: Date, endDate: Date }> = ({ startDate, e
             }
         };
         fetchData();
-    }, [startDate, endDate, getLoans]);
+    }, [startDate, endDate, getLoans, locationFilter]);
 
     const reportData = useMemo(() => {
         const totalDisbursed = loans.reduce((sum, l) => sum + l.loanAmount, 0);
@@ -557,7 +615,7 @@ const LoanReport: React.FC<{ startDate: Date, endDate: Date }> = ({ startDate, e
 };
 
 
-const POSSalesReport: React.FC<{ startDate: Date, endDate: Date }> = ({ startDate, endDate }) => {
+const POSSalesReport: React.FC<{ startDate: Date, endDate: Date, locationFilter: string }> = ({ startDate, endDate, locationFilter }) => {
     const { user, getPOSSales, getStocks, getUsersForHospital } = useAuth();
     const [loading, setLoading] = useState(true);
     const [sales, setSales] = useState<POSSale[]>([]);
@@ -568,19 +626,23 @@ const POSSalesReport: React.FC<{ startDate: Date, endDate: Date }> = ({ startDat
 
     useEffect(() => {
         const fetchData = async () => {
+            if (!user || !user.hospitalId) {
+                setLoading(false);
+                return;
+            }
             setLoading(true);
             const [salesData, stockData, staffData] = await Promise.all([
-                getPOSSales(startDate, endDate),
-                getStocks(),
+                getPOSSales(startDate, endDate, locationFilter),
+                getStocks(locationFilter),
                 getUsersForHospital()
             ]);
-            setSales(salesData.filter(s => s.status === 'Completed'));
+            setSales(salesSnapshot.docs.map(doc => doc.data() as POSSale).filter(s => s.status === 'Completed'));
             setStockItems(stockData);
             setStaffList(staffData);
             setLoading(false);
         };
         fetchData();
-    }, [startDate, endDate, getPOSSales, getStocks, getUsersForHospital]);
+    }, [startDate, endDate, getPOSSales, getStocks, getUsersForHospital, locationFilter]);
 
     useEffect(() => { setCurrentPage(1); }, [startDate, endDate]);
 
@@ -697,7 +759,7 @@ const POSSalesReport: React.FC<{ startDate: Date, endDate: Date }> = ({ startDat
     );
 };
 
-const TreatmentSalesReport: React.FC<{ startDate: Date, endDate: Date }> = ({ startDate, endDate }) => {
+const TreatmentSalesReport: React.FC<{ startDate: Date, endDate: Date, locationFilter: string }> = ({ startDate, endDate, locationFilter }) => {
      const { user, getInvoices } = useAuth();
      const [loading, setLoading] = useState(true);
      const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -707,12 +769,22 @@ const TreatmentSalesReport: React.FC<{ startDate: Date, endDate: Date }> = ({ st
 
      useEffect(() => {
         const fetchData = async () => {
+            if (!user || !user.hospitalId) {
+                setLoading(false);
+                return;
+            }
             setLoading(true);
-            setInvoices(await getInvoices(startDate, endDate));
+            let invoiceQuery: firebase.firestore.Query = db.collection("invoices");
+            invoiceQuery = invoiceQuery.where("hospitalId", "==", user.hospitalId);
+            if (locationFilter !== 'all') {
+                invoiceQuery = invoiceQuery.where("locationId", "==", locationFilter);
+            }
+            const invoicesSnapshot = await invoiceQuery.where("createdAt", ">=", startDate).where("createdAt", "<=", endDate).get();
+            setInvoices(invoicesSnapshot.docs.map(doc => doc.data() as Invoice));
             setLoading(false);
         };
         fetchData();
-    }, [startDate, endDate, getInvoices]);
+    }, [startDate, endDate, getInvoices, locationFilter, user]);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -822,7 +894,7 @@ const TreatmentSalesReport: React.FC<{ startDate: Date, endDate: Date }> = ({ st
     );
 };
 
-const PurchaseAndSaleReport: React.FC<{ startDate: Date; endDate: Date }> = ({ startDate, endDate }) => {
+const PurchaseAndSaleReport: React.FC<{ startDate: Date; endDate: Date; locationFilter: string }> = ({ startDate, endDate, locationFilter }) => {
     const { user, getStockOrders, getPOSSales, getStocks } = useAuth();
     const { addToast } = useToast();
     const [loading, setLoading] = useState(true);
@@ -832,19 +904,37 @@ const PurchaseAndSaleReport: React.FC<{ startDate: Date; endDate: Date }> = ({ s
 
     useEffect(() => {
         const calculateReport = async () => {
-            if (!user) return;
+            if (!user || !user.hospitalId) {
+                setLoading(false);
+                return;
+            }
             setLoading(true);
             try {
-                const [orders, sales, stockItems] = await Promise.all([
-                    getStockOrders(startDate, endDate),
-                    getPOSSales(startDate, endDate),
-                    getStocks(),
+                let stockOrderQuery: firebase.firestore.Query = db.collection("stockOrders");
+                stockOrderQuery = stockOrderQuery.where("hospitalId", "==", user.hospitalId);
+                if (locationFilter !== 'all') {
+                    stockOrderQuery = stockOrderQuery.where("locationId", "==", locationFilter);
+                }
+
+                let posSaleQuery: firebase.firestore.Query = db.collection("posSales");
+                posSaleQuery = posSaleQuery.where("hospitalId", "==", user.hospitalId);
+                if (locationFilter !== 'all') {
+                    posSaleQuery = posSaleQuery.where("locationId", "==", locationFilter);
+                }
+
+                const [ordersSnapshot, salesSnapshot, allStockItems] = await Promise.all([
+                    stockOrderQuery.where("orderDate", ">=", startDate).where("orderDate", "<=", endDate).get(),
+                    posSaleQuery.where("createdAt", ">=", startDate).where("createdAt", "<=", endDate).get(),
+                    getStocks(locationFilter), // Pass locationFilter here
                 ]);
-                const stockCostMap = new Map(stockItems.map(item => {
+                const orders = ordersSnapshot.docs.map(doc => doc.data() as StockOrder);
+                const sales = salesSnapshot.docs.map(doc => doc.data() as POSSale);
+
+                const stockCostMap = new Map(allStockItems.map(item => {
                     const latestBatch = item.batches?.sort((a, b) => (b.expiryDate?.seconds || 0) - (a.expiryDate?.seconds || 0))[0];
                     return [item.id!, latestBatch?.costPrice || 0];
                 }));
-                const stockCategoryMap = new Map(stockItems.map(item => [item.id!, item.category]));
+                const stockCategoryMap = new Map(allStockItems.map(item => [item.id!, item.category]));
 
                 const totalPurchaseValue = orders.reduce((sum, order) => sum + order.totalValue, 0);
                 const completedSales = sales.filter(s => s.status === 'Completed');
@@ -986,7 +1076,7 @@ const PurchaseAndSaleReport: React.FC<{ startDate: Date; endDate: Date }> = ({ s
     );
 };
 
-const StockOrdersByVendorReport: React.FC<{ startDate: Date, endDate: Date }> = ({ startDate, endDate }) => {
+const StockOrdersByVendorReport: React.FC<{ startDate: Date, endDate: Date, locationFilter: string }> = ({ startDate, endDate, locationFilter }) => {
     const { user, getStockOrders } = useAuth();
     const { addToast } = useToast();
     const [loading, setLoading] = useState(true);
@@ -997,9 +1087,13 @@ const StockOrdersByVendorReport: React.FC<{ startDate: Date, endDate: Date }> = 
 
     useEffect(() => {
         const fetchData = async () => {
+            if (!user || !user.hospitalId) {
+                setLoading(false);
+                return;
+            }
             setLoading(true);
             try {
-                setOrders(await getStockOrders(startDate, endDate));
+                setOrders(await getStockOrders(startDate, endDate, locationFilter));
             } catch (error) {
                 console.error("Failed to fetch stock orders report:", error);
                 addToast("Could not generate stock order report.", "error");
@@ -1008,7 +1102,7 @@ const StockOrdersByVendorReport: React.FC<{ startDate: Date, endDate: Date }> = 
             }
         };
         fetchData();
-    }, [startDate, endDate, getStockOrders, addToast]);
+    }, [startDate, endDate, getStockOrders, addToast, locationFilter, user]);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -1142,7 +1236,7 @@ const StockOrdersByVendorReport: React.FC<{ startDate: Date, endDate: Date }> = 
     );
 };
 
-const StockReturnsByVendorReport: React.FC<{ startDate: Date, endDate: Date }> = ({ startDate, endDate }) => {
+const StockReturnsByVendorReport: React.FC<{ startDate: Date, endDate: Date, locationFilter: string }> = ({ startDate, endDate, locationFilter }) => {
     const { user, getStockReturns } = useAuth();
     const { addToast } = useToast();
     const [loading, setLoading] = useState(true);
@@ -1153,9 +1247,13 @@ const StockReturnsByVendorReport: React.FC<{ startDate: Date, endDate: Date }> =
 
     useEffect(() => {
         const fetchData = async () => {
+            if (!user || !user.hospitalId) {
+                setLoading(false);
+                return;
+            }
             setLoading(true);
             try {
-                setReturns(await getStockReturns(startDate, endDate));
+                setReturns(await getStockReturns(startDate, endDate, locationFilter));
             } catch (error) {
                 console.error("Failed to fetch stock returns report:", error);
                 addToast("Could not generate stock returns report.", "error");
@@ -1164,7 +1262,7 @@ const StockReturnsByVendorReport: React.FC<{ startDate: Date, endDate: Date }> =
             }
         };
         fetchData();
-    }, [startDate, endDate, getStockReturns, addToast]);
+    }, [startDate, endDate, getStockReturns, addToast, locationFilter, user]);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -1367,15 +1465,21 @@ const getDateRangeFromPreset = (preset: string, financialYearStartMonth: number 
 
 // --- MAIN SCREEN COMPONENT ---
 const ReportScreen: React.FC = () => {
-    const { user } = useAuth();
+    const { user, hospitalLocations } = useAuth();
     const [selectedReport, setSelectedReport] = useState<ReportType>('pnl');
     const [datePreset, setDatePreset] = useState<string>('thisMonth');
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
+    const [locationFilter, setLocationFilter] = useState('all'); // 'all' or locationId
 
     const financialYearStartMonth = useMemo(() => {
         const monthStr = user?.hospitalFinancialYearStartMonth || 'April';
         return new Date(Date.parse(monthStr +" 1, 2012")).getMonth();
     }, [user?.hospitalFinancialYearStartMonth]);
+
+    const locationOptions = useMemo(() => [
+        { value: 'all', label: 'All Branches' },
+        ...(hospitalLocations || []).map(loc => ({ value: loc.id, label: loc.name }))
+    ], [hospitalLocations]);
     
     useEffect(() => {
         if (datePreset !== 'custom') {
@@ -1405,14 +1509,14 @@ const ReportScreen: React.FC = () => {
         if (!startDate || !endDate) return <NoDataPlaceholder message="Please select a valid date range." />;
         
         switch (selectedReport) {
-            case 'pnl': return <ProfitAndLossReport startDate={startDate} endDate={endDate} />;
-            case 'pos_sales': return <POSSalesReport startDate={startDate} endDate={endDate} />;
-            case 'treatment_sales': return <TreatmentSalesReport startDate={startDate} endDate={endDate} />;
-            case 'payroll': return <PayrollReport startDate={startDate} endDate={endDate} />;
-            case 'loan_report': return <LoanReport startDate={startDate} endDate={endDate} />;
-            case 'purchase_sale': return <PurchaseAndSaleReport startDate={startDate} endDate={endDate} />;
-            case 'stock_orders_by_vendor': return <StockOrdersByVendorReport startDate={startDate} endDate={endDate} />;
-            case 'stock_returns_by_vendor': return <StockReturnsByVendorReport startDate={startDate} endDate={endDate} />;
+            case 'pnl': return <ProfitAndLossReport startDate={startDate} endDate={endDate} locationFilter={locationFilter} />;
+            case 'pos_sales': return <POSSalesReport startDate={startDate} endDate={endDate} locationFilter={locationFilter} />;
+            case 'treatment_sales': return <TreatmentSalesReport startDate={startDate} endDate={endDate} locationFilter={locationFilter} />;
+            case 'payroll': return <PayrollReport startDate={startDate} endDate={endDate} locationFilter={locationFilter} />;
+            case 'loan_report': return <LoanReport startDate={startDate} endDate={endDate} locationFilter={locationFilter} />;
+            case 'purchase_sale': return <PurchaseAndSaleReport startDate={startDate} endDate={endDate} locationFilter={locationFilter} />;
+            case 'stock_orders_by_vendor': return <StockOrdersByVendorReport startDate={startDate} endDate={endDate} locationFilter={locationFilter} />;
+            case 'stock_returns_by_vendor': return <StockReturnsByVendorReport startDate={startDate} endDate={endDate} locationFilter={locationFilter} />;
             default: return <NoDataPlaceholder message="This report is not yet available." />;
         }
     };
@@ -1465,6 +1569,9 @@ const ReportScreen: React.FC = () => {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4 mb-6 flex flex-wrap gap-4 items-center no-print">
             <Select label="Date Range:" value={datePreset} onChange={e => setDatePreset(e.target.value)}>
                 {datePresets.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </Select>
+            <Select label="Branch:" value={locationFilter} onChange={e => setLocationFilter(e.target.value)}>
+                {locationOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </Select>
             {datePreset === 'custom' && (
                 <>

@@ -77,7 +77,7 @@ const defaultIndividualSettings: IndividualInvoiceSettings = {
 
 const defaultInvoiceSettings: InvoiceSettingsData = {
     treatmentInvoice: { ...defaultIndividualSettings, prefix: 'INV-' },
-    posInvoice: { ...defaultIndividualSettings, prefix: 'POS-', design: 'receipt' }
+    posInvoice: { ...defaultIndividualSettings, prefix: 'POS-', printerType: 'thermal', design: 'receipt' }
 };
 
 
@@ -153,26 +153,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // It sets up real-time listeners for all necessary hospital-wide data.
     if (user && user.hospitalId && user.roleName !== 'patient' && !user.isSuperAdmin) {
         const createListener = (collectionName: string, setter: React.Dispatch<any>) => {
-            return db.collection(collectionName).where('hospitalId', '==', user.hospitalId)
-                .onSnapshot(snapshot => {
-                    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            let query: firebase.firestore.Query = db.collection(collectionName).where('hospitalId', '==', user.hospitalId);
 
-                    // FIX: Flatten stock data for the current location to make it directly accessible.
-                    if (collectionName === 'stocks') {
-                        // FIX: Cast the generic `data` array to `StockItem[]` to resolve the type mismatch in the map function.
-                        const transformedData = (data as StockItem[]).map((item) => {
-                            const locId = user?.currentLocation?.id;
-                            if (locId && item.locationStock?.[locId]) {
-                                return { ...item, ...item.locationStock[locId] };
-                            }
-                            // Provide default values if no location-specific data is found.
-                            return { ...item, totalStock: 0, lowStockThreshold: 10, batches: [] };
-                        });
-                        setter(transformedData);
-                    } else {
-                        setter(data);
-                    }
-                }, err => console.error(`Error listening to ${collectionName}:`, err));
+            if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+                const locationId = user.currentLocation.id;
+                switch (collectionName) {
+                    case 'patients':
+                    case 'consultations':
+                    case 'peripherals':
+                    case 'employees':
+                    case 'loans':
+                        query = query.where("locationId", "==", locationId);
+                        break;
+                    case 'doctors':
+                    case 'users': // For staff/admin users
+                        query = query.where("assignedLocations", "array-contains", locationId);
+                        break;
+                    // For other collections (treatments, medicines, vendors, taxes, taxGroups, salaryComponents, salaryGroups),
+                    // no location-specific filtering is applied as they are considered hospital-wide.
+                }
+            }
+            
+            return query.onSnapshot(snapshot => {
+                const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                if (collectionName === 'stocks') {
+                    const transformedData = (data as StockItem[]).map((item) => {
+                        const locId = user?.currentLocation?.id;
+                        if (locId && item.locationStock?.[locId]) {
+                            return { ...item, ...item.locationStock[locId] };
+                        }
+                        return { ...item, totalStock: 0, lowStockThreshold: 10, batches: [] };
+                    });
+                    setter(transformedData);
+                } else {
+                    setter(data);
+                }
+            }, err => console.error(`Error listening to ${collectionName}:`, err));
         };
         
         const unsubscribers = [
@@ -228,7 +245,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setSalaryComponents([]); setSalaryGroups([]);
         }
     }
-  }, [user]);
+  }, [user, user?.currentLocation?.id]);
 
   // Real-time listeners for Super Admin collections
   useEffect(() => {
@@ -490,6 +507,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 hospitalEmployeeDepartments: hospitalData.employeeDepartments || [],
                 hospitalEmployeeDesignations: hospitalData.employeeDesignations || [],
                 hospitalEmployeeShifts: hospitalData.employeeShifts || [],
+                assignedLocations: userDocData.assignedLocations || [], // Ensure it's always an array
             };
             setUser(appUser);
 
@@ -567,6 +585,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const unsubscribe = db.collection(collectionName).doc(user.id).onSnapshot(
         (doc) => {
           if (doc.exists) {
+            console.log("AuthContext - Raw doc.data():", doc.data());
+            console.log("AuthContext - doc.data()?.assignedLocations:", doc.data()?.assignedLocations);
             
             if (user.roleName === 'patient') {
                 const updatedPatientDoc = { id: doc.id, ...doc.data() } as PatientDocument;
@@ -601,11 +621,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 ? prevUser.hospitalRolePermissions[updatedUserDoc.roleName as EditableRole] || permissionsByRole[updatedUserDoc.roleName]
                 : permissionsByRole[updatedUserDoc.roleName];
 
-              return {
+              const newUser = {
                 ...prevUser,
                 ...updatedUserDoc,
                 permissions: newPermissions,
               };
+              return newUser;
             });
           } else {
             console.warn("Current user's document was deleted. Logging out.");

@@ -19,11 +19,23 @@ const formatCurrency = (amount: number, currencyCode: string = 'USD') => {
 
 export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadFileFunction, setUser: React.Dispatch<React.SetStateAction<AppUser | null>>) => {
     // Stock Management
-    const getStocks = useCallback(async (): Promise<StockItem[]> => {
+    const getStocks = useCallback(async (locationIdFilter?: string): Promise<StockItem[]> => {
         if (!user) return [];
-        const q = db.collection("stocks").where("hospitalId", "==", user.hospitalId);
+        let q: firebase.firestore.Query = db.collection("stocks").where("hospitalId", "==", user.hospitalId);
+        
         const snapshot = await q.get();
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StockItem)).sort((a, b) => a.name.localeCompare(b.name));
+        let stocks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StockItem));
+
+        let locationId = locationIdFilter;
+        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+            locationId = user.currentLocation.id;
+        }
+
+        if (locationId && locationId !== 'all') {
+            stocks = stocks.filter(stock => stock.locationStock?.[locationId]?.totalStock > 0);
+        }
+        
+        return stocks.sort((a, b) => a.name.localeCompare(b.name));
     }, [user]);
 
     const getStockItemById = useCallback(async (stockId: string): Promise<StockItem | null> => {
@@ -395,9 +407,18 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
     }, [user]);
 
     // Stock Order Management
-    const getStockOrders = useCallback(async (startDate?: Date, endDate?: Date): Promise<StockOrder[]> => {
+    const getStockOrders = useCallback(async (startDate?: Date, endDate?: Date, locationId?: string): Promise<StockOrder[]> => {
         if (!user) return [];
         let q: firebase.firestore.Query = db.collection("stockOrders").where("hospitalId", "==", user.hospitalId);
+        
+        let locId = locationId;
+        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+            locId = user.currentLocation.id;
+        }
+
+        if (locId && locId !== 'all') {
+            q = q.where("locationId", "==", locId);
+        }
         if (startDate) {
             q = q.where("orderDate", ">=", firebase.firestore.Timestamp.fromDate(startDate));
         }
@@ -730,9 +751,18 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
     }, []);
 
     // Stock Return Management
-    const getStockReturns = useCallback(async (startDate?: Date, endDate?: Date): Promise<StockReturn[]> => {
+    const getStockReturns = useCallback(async (startDate?: Date, endDate?: Date, locationId?: string): Promise<StockReturn[]> => {
         if (!user) return [];
         let q: firebase.firestore.Query = db.collection("stockReturns").where("hospitalId", "==", user.hospitalId);
+        
+        let locId = locationId;
+        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+            locId = user.currentLocation.id;
+        }
+
+        if (locId && locId !== 'all') {
+            q = q.where("locationId", "==", locId);
+        }
         if (startDate) {
             q = q.where("returnDate", ">=", firebase.firestore.Timestamp.fromDate(startDate));
         }

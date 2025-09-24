@@ -383,7 +383,7 @@ const HospitalSettingsScreen: React.FC = () => {
     const canSeeRoles = user?.roleName === 'owner';
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto bg-white dark:bg-slate-900">
             <div className="mb-6">
                 <nav className="flex space-x-2 border-b border-slate-200 dark:border-slate-800" aria-label="Tabs">
                     <TabButton tabId="general" title="General Settings" icon={faCogs} />

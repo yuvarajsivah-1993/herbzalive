@@ -1,15 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
-// FIX: Update react-router-dom imports for v6 compatibility
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { UserDocument, Address, UserUpdateData } from '../types';
+import { UserDocument, Address, UserUpdateData, HospitalLocation } from '../types';
 import Avatar from '../components/ui/Avatar';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPhone, faEnvelope, faUser, faLock } from '@fortawesome/free-solid-svg-icons';
+import { faPhone, faEnvelope, faUser, faLock, faChevronLeft } from '@fortawesome/free-solid-svg-icons';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
 import { useToast } from '../hooks/useToast';
+import Select from '../components/ui/Select';
+import MultiSelect, { MultiSelectOption } from '../components/ui/MultiSelect';
 
 const ResetPasswordModal: React.FC<{
   userEmail: string;
@@ -87,9 +88,8 @@ const DetailCard: React.FC<{ title: string, children: React.ReactNode, footer?: 
 
 const UserDetailsScreen: React.FC = () => {
     const { userId } = useParams<{ userId: string }>();
-    // FIX: Use useNavigate for v6 compatibility
     const navigate = useNavigate();
-    const { getUserById, updateUser, updateUserStatus, changeUserRole, resetUserPasswordByAdmin, deleteUser, user: currentUser } = useAuth();
+    const { getUserById, updateUser, updateUserStatus, changeUserRole, resetUserPasswordByAdmin, deleteUser, user: currentUser, hospitalLocations } = useAuth();
     
     const [user, setUser] = useState<UserDocument | null>(null);
     const [pageLoading, setPageLoading] = useState(true);
@@ -110,6 +110,12 @@ const UserDetailsScreen: React.FC = () => {
     const [city, setCity] = useState('');
     const [country, setCountry] = useState('');
     const [pincode, setPincode] = useState('');
+    const [roleName, setRoleName] = useState<'staff' | 'admin'>('staff');
+    const [assignedLocations, setAssignedLocations] = useState<string[]>([]);
+
+    const locationOptions = useMemo((): MultiSelectOption[] =>
+        hospitalLocations.map(loc => ({ value: loc.id, label: loc.name }))
+    , [hospitalLocations]);
 
     const populateForm = useCallback((userData: UserDocument) => {
         setName(userData.name);
@@ -118,6 +124,8 @@ const UserDetailsScreen: React.FC = () => {
         setCity(userData.address.city);
         setCountry(userData.address.country);
         setPincode(userData.address.pincode);
+        setRoleName(userData.roleName as 'staff' | 'admin');
+        setAssignedLocations(userData.assignedLocations || []);
     }, []);
 
     const fetchUser = useCallback(async () => {
@@ -148,7 +156,7 @@ const UserDetailsScreen: React.FC = () => {
         setActionLoading('update');
         try {
             const address: Address = { street, city, country, pincode };
-            const updateData: UserUpdateData = { name, phone, address };
+            const updateData: UserUpdateData = { name, phone, address, roleName, assignedLocations };
             await updateUser(userId, updateData);
             setUser(prevUser => prevUser ? { ...prevUser, ...updateData } : null);
             setIsEditing(false);
@@ -238,7 +246,6 @@ const UserDetailsScreen: React.FC = () => {
                 try {
                     await deleteUser(userId);
                     addToast('User deleted successfully.', 'success');
-                    // FIX: Use navigate for v6 navigation
                     navigate(`/hospitals/${currentUser?.hospitalSlug}/staff`);
                 } catch (err) {
                     addToast('An error occurred while deleting the user.', 'error');
@@ -261,6 +268,11 @@ const UserDetailsScreen: React.FC = () => {
 
     return (
         <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            <div className="mb-6 lg:col-span-3">
+                <Button variant="light" onClick={() => navigate(-1)}>
+                    <FontAwesomeIcon icon={faChevronLeft} className="mr-2" /> Back
+                </Button>
+            </div>
             {isResetModalOpen && user && (
                 <ResetPasswordModal 
                     userEmail={user.email}
@@ -300,10 +312,17 @@ const UserDetailsScreen: React.FC = () => {
                         <Input id="name" label="Full Name" type="text" required value={name} onChange={e => setName(e.target.value)} disabled={!isEditing} icon={<FontAwesomeIcon icon={faUser} className="h-5 w-5 text-gray-400" />} />
                         <Input id="email" label="Email" type="email" value={user.email} disabled icon={<FontAwesomeIcon icon={faEnvelope} className="h-5 w-5 text-gray-400" />} />
                         <Input id="phone" label="Phone" type="tel" required value={phone} onChange={e => setPhone(e.target.value)} disabled={!isEditing} icon={<FontAwesomeIcon icon={faPhone} className="h-5 w-5 text-gray-400" />} />
+                        <Select label="Role" value={roleName} onChange={e => setRoleName(e.target.value as 'staff' | 'admin')} disabled={!isEditing}>
+                            <option value="staff">Staff</option>
+                            <option value="admin">Admin</option>
+                        </Select>
                         <Input id="street" label="Street" type="text" required value={street} onChange={e => setStreet(e.target.value)} disabled={!isEditing} />
                         <Input id="city" label="City" type="text" required value={city} onChange={e => setCity(e.target.value)} disabled={!isEditing} />
                         <Input id="country" label="Country" type="text" required value={country} onChange={e => setCountry(e.target.value)} disabled={!isEditing} />
                         <Input id="pincode" label="Pincode" type="text" required value={pincode} onChange={e => setPincode(e.target.value)} disabled={!isEditing} />
+                        <div className="md:col-span-2">
+                            <MultiSelect label="Assigned Locations" options={locationOptions} selectedValues={assignedLocations} onChange={setAssignedLocations} placeholder="Select locations..." disabled={!isEditing} />
+                        </div>
                     </div>
                 </DetailCard>
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -36,7 +36,15 @@ const LocationSwitcher: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    if (!user || !hospitalLocations || hospitalLocations.length <= 1) {
+    const locationsToShow = useMemo(() => {
+        if (!user || !hospitalLocations) return [];
+        if (user.roleName === 'owner' || user.roleName === 'admin') {
+            return hospitalLocations;
+        }
+        return hospitalLocations.filter(loc => user.assignedLocations?.includes(loc.id));
+    }, [user, hospitalLocations]);
+
+    if (!user || locationsToShow.length === 0) {
         return null;
     }
 
@@ -55,7 +63,7 @@ const LocationSwitcher: React.FC = () => {
             {isOpen && (
                 <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-slate-800 ring-1 ring-black ring-opacity-5 dark:ring-slate-700 focus:outline-none z-30">
                     <div className="py-1">
-                        {hospitalLocations.map(location => (
+                        {locationsToShow.map(location => (
                             <button
                                 key={location.id}
                                 onClick={() => { setCurrentLocation(location.id); setIsOpen(false); }}

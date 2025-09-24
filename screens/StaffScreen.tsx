@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { UserDocument, NewStaffData, Address } from '../types';
+import { UserDocument, NewStaffData, Address, HospitalLocation } from '../types';
 import Button from '../components/ui/Button';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus, faUser, faEnvelope, faPhone, faLock, faEllipsisV, faPencilAlt, faTrashAlt, faSearch } from '@fortawesome/free-solid-svg-icons';
 import Avatar from '../components/ui/Avatar';
 import Input from '../components/ui/Input';
-// FIX: Update react-router-dom imports for v6 compatibility
 import { useNavigate } from 'react-router-dom';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
 import { useToast } from '../hooks/useToast';
 import Pagination from '../components/ui/Pagination';
 import Select from '../components/ui/Select';
 
-const AddUserModal: React.FC<{onClose: () => void; onAddUser: (data: NewStaffData) => Promise<void>}> = ({ onClose, onAddUser }) => {
+
+const AddUserModal: React.FC<{onClose: () => void; onAddUser: (data: NewStaffData) => Promise<void>; hospitalLocations: HospitalLocation[]}> = ({ onClose, onAddUser, hospitalLocations }) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
@@ -22,9 +22,19 @@ const AddUserModal: React.FC<{onClose: () => void; onAddUser: (data: NewStaffDat
     const [country, setCountry] = useState('');
     const [pincode, setPincode] = useState('');
     const [password, setPassword] = useState('');
+    const [assignedLocations, setAssignedLocations] = useState<string[]>([]);
+    const [roleName, setRoleName] = useState<'staff' | 'admin'>('staff');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { addToast } = useToast();
+
+    const handleLocationChange = (locationId: string) => {
+        setAssignedLocations(prev => 
+            prev.includes(locationId) 
+                ? prev.filter(id => id !== locationId) 
+                : [...prev, locationId]
+        );
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -32,7 +42,7 @@ const AddUserModal: React.FC<{onClose: () => void; onAddUser: (data: NewStaffDat
         setLoading(true);
 
         const address: Address = { street, city, country, pincode };
-        const userData: NewStaffData = { name, email, phone, address, password };
+        const userData: NewStaffData = { name, email, phone, address, password, assignedLocations, roleName };
 
         try {
             await onAddUser(userData);
@@ -59,10 +69,30 @@ const AddUserModal: React.FC<{onClose: () => void; onAddUser: (data: NewStaffDat
                         <Input id="name" label="Full Name" type="text" required value={name} onChange={e => setName(e.target.value)} icon={<FontAwesomeIcon icon={faUser} className="h-5 w-5 text-gray-400" />} />
                         <Input id="email" label="Email Address" type="email" required value={email} onChange={e => setEmail(e.target.value)} icon={<FontAwesomeIcon icon={faEnvelope} className="h-5 w-5 text-gray-400" />} />
                         <Input id="phone" label="Phone Number" type="tel" required value={phone} onChange={e => setPhone(e.target.value)} icon={<FontAwesomeIcon icon={faPhone} className="h-5 w-5 text-gray-400" />} />
+                        <Select label="Role" value={roleName} onChange={e => setRoleName(e.target.value as 'staff' | 'admin')}>
+                            <option value="staff">Staff</option>
+                            <option value="admin">Admin</option>
+                        </Select>
                         <Input id="street" label="Street" type="text" required value={street} onChange={e => setStreet(e.target.value)} />
                         <Input id="city" label="City" type="text" required value={city} onChange={e => setCity(e.target.value)} />
                         <Input id="country" label="Country" type="text" required value={country} onChange={e => setCountry(e.target.value)} />
                         <Input id="pincode" label="Pincode" type="text" required value={pincode} onChange={e => setPincode(e.target.value)} />
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned Locations</label>
+                            <div className="p-4 border border-slate-300 dark:border-slate-700 rounded-lg max-h-40 overflow-y-auto">
+                                {hospitalLocations.map(loc => (
+                                    <label key={loc.id} className="flex items-center space-x-3 py-1">
+                                        <input
+                                            type="checkbox"
+                                            checked={assignedLocations.includes(loc.id)}
+                                            onChange={() => handleLocationChange(loc.id)}
+                                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-slate-700 dark:text-slate-300">{loc.name}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                     {error && <p className="text-sm text-red-500 mt-4">{error}</p>}
                     <div className="flex justify-end space-x-2 pt-6 border-t border-slate-200 dark:border-slate-700 mt-6">
@@ -112,7 +142,7 @@ const ActionsDropdown: React.FC<{ onEdit: () => void; onDelete: () => void }> = 
 
 
 const StaffScreen: React.FC = () => {
-    const { usersForHospital, addUser, user, deleteUser } = useAuth();
+    const { usersForHospital, addUser, user, deleteUser, hospitalLocations } = useAuth();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const navigate = useNavigate();
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, userId: '' });
@@ -190,7 +220,7 @@ const StaffScreen: React.FC = () => {
                 confirmButtonText="Delete"
                 confirmButtonVariant="danger"
             />
-          {isModalOpen && <AddUserModal onClose={() => setIsModalOpen(false)} onAddUser={handleAddUser} />}
+          {isModalOpen && <AddUserModal onClose={() => setIsModalOpen(false)} onAddUser={handleAddUser} hospitalLocations={hospitalLocations} />}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm">
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 border-b border-slate-200 dark:border-slate-800 items-end">
                 <div className="lg:col-span-2">

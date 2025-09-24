@@ -53,7 +53,7 @@ const PrescriptionRow: React.FC<{
 const ConsultationScreen: React.FC = () => {
     const { appointmentId } = useParams<{ appointmentId: string }>();
     const navigate = useNavigate();
-    const { user, getPatientById, getAppointments, getConsultationForAppointment, getStocks, saveConsultation, getDoctorById, updateAppointment, getTreatments, addInvoice } = useAuth();
+    const { user, getPatientById, getAppointmentById, getConsultationForAppointment, getStocks, saveConsultation, getDoctorById, updateAppointment, getTreatments, addInvoice } = useAuth();
     const { addToast } = useToast();
 
     const [loading, setLoading] = useState(true);
@@ -84,12 +84,7 @@ const ConsultationScreen: React.FC = () => {
         if (!appointmentId || !user) return;
         setLoading(true);
         try {
-            const today = new Date();
-            const start = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-            const end = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate());
-
-            const appointments = await getAppointments(start, end);
-            const appt = appointments.find(a => a.id === appointmentId);
+            const appt = await getAppointmentById(appointmentId);
             if (!appt) {
                 addToast("Appointment not found.", "error");
                 navigate(-1);
@@ -131,7 +126,7 @@ const ConsultationScreen: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [appointmentId, user, getAppointments, getPatientById, getDoctorById, getConsultationForAppointment, getStocks, getTreatments, addToast, navigate]);
+    }, [appointmentId, user, getAppointmentById, getPatientById, getDoctorById, getConsultationForAppointment, getStocks, getTreatments, addToast, navigate]);
 
     useEffect(() => {
         fetchAllData();

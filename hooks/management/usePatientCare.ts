@@ -86,8 +86,12 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
 
     const getPatients = useCallback(async (): Promise<PatientDocument[]> => {
         if (!user) return [];
-        const patientsRef = db.collection("patients");
-        const q = patientsRef.where("hospitalId", "==", user.hospitalId);
+        let q: firebase.firestore.Query = db.collection("patients").where("hospitalId", "==", user.hospitalId);
+
+        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+            q = q.where("locationId", "==", user.currentLocation.id);
+        }
+        
         const querySnapshot = await q.get();
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PatientDocument));
     }, [user]);
@@ -256,6 +260,7 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
             ...data, patientName: patientDoc.data()!.name, doctorName: doctorDoc.data()!.name,
             start: firebase.firestore.Timestamp.fromDate(data.start), end: firebase.firestore.Timestamp.fromDate(data.end),
             hospitalId: user.hospitalId,
+            locationId: user.currentLocation.id,
         });
         await createAuditLog(user, 'CREATE', 'APPOINTMENT', docRef.id, `Scheduled appointment for ${patientDoc.data()!.name} with Dr. ${doctorDoc.data()!.name}.`);
     }, [user]);
@@ -265,6 +270,11 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
         let q = db.collection("appointments").where("hospitalId", "==", user.hospitalId)
             .where("start", ">=", firebase.firestore.Timestamp.fromDate(startDate))
             .where("start", "<", firebase.firestore.Timestamp.fromDate(endDate));
+
+        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+            q = q.where("locationId", "==", user.currentLocation.id);
+        }
+
         if (user.roleName === 'doctor' && user.doctorId) q = q.where("doctorId", "==", user.doctorId);
         const querySnapshot = await q.get();
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Appointment));
@@ -343,10 +353,24 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
         }
     }, [user]);
 
+    const getAppointmentById = useCallback(async (appointmentId: string): Promise<Appointment | null> => {
+        if (!user) return null;
+        try {
+            const docSnap = await db.collection("appointments").doc(appointmentId).get();
+            if (docSnap.exists && docSnap.data()?.hospitalId === user.hospitalId) {
+                return { id: docSnap.id, ...docSnap.data() } as Appointment;
+            }
+            return null;
+        } catch (error) {
+            console.error(`Error fetching appointment ${appointmentId}:`, error);
+            return null;
+        }
+    }, [user]);
+
     return {
         addPatient, getPatients, getPatientById, updatePatient, deletePatient, updatePatientStatus,
         addPatientNote, deletePatientNote, uploadPatientDocument, deletePatientDocument,
-        addAppointment, getAppointments, getAppointmentsForPatient, updateAppointment, deleteAppointment,
+        addAppointment, getAppointments, getAppointmentsForPatient, updateAppointment, deleteAppointment, getAppointmentById,
         getConsultationForAppointment, getConsultationsForPatient, saveConsultation,
     };
 };

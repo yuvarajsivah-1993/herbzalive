@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import Pagination from '../components/ui/Pagination';
 // FIX: Add MultiSelect component to allow selection of assigned locations.
 import MultiSelect, { MultiSelectOption } from '../components/ui/MultiSelect';
+import { usePaginationSettings } from '../hooks/usePaginationSettings';
 
 const ALL_DAYS: { key: DayOfWeek, display: string }[] = [
     { key: 'Sun', display: 'Sunday' },
@@ -444,7 +445,7 @@ const DoctorsScreen: React.FC = () => {
   const [specialtyFilter, setSpecialtyFilter] = useState('all');
   
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(30);
+  const [itemsPerPage, setItemsPerPage] = usePaginationSettings();
 
   const canWrite = user?.permissions.doctors === 'write';
   

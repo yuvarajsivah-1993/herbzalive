@@ -41,6 +41,11 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
     const getInvoices = useCallback(async (startDate?: Date, endDate?: Date): Promise<Invoice[]> => {
         if (!user) return [];
         let q: firebase.firestore.Query = db.collection("invoices").where("hospitalId", "==", user.hospitalId);
+
+        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+            q = q.where("locationId", "==", user.currentLocation.id);
+        }
+
         if (startDate) {
             q = q.where("createdAt", ">=", firebase.firestore.Timestamp.fromDate(startDate));
         }
@@ -235,19 +240,37 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
     }, []);
 
     // Expense Management
-    const getExpenses = useCallback(async (startDate?: Date, endDate?: Date): Promise<Expense[]> => {
-        if (!user) return [];
-        let q: firebase.firestore.Query = db.collection("expenses").where("hospitalId", "==", user.hospitalId);
+    const getExpenses = useCallback(async (
+        locationId?: string,
+        startDate?: Date,
+        endDate?: Date,
+        limitVal: number = 20,
+        lastVisible: firebase.firestore.QueryDocumentSnapshot | null = null
+    ): Promise<{ expenses: Expense[]; lastVisible: firebase.firestore.QueryDocumentSnapshot | null }> => {
+        if (!user) return { expenses: [], lastVisible: null };
+
+        let q: firebase.firestore.Query = db.collection("expenses")
+            .where("hospitalId", "==", user.hospitalId)
+            .orderBy("date", "desc");
+
+        if (locationId && locationId !== 'all') {
+            q = q.where("locationId", "==", locationId);
+        }
         if (startDate) {
             q = q.where("date", ">=", firebase.firestore.Timestamp.fromDate(startDate));
         }
         if (endDate) {
             q = q.where("date", "<=", firebase.firestore.Timestamp.fromDate(endDate));
         }
-        const snapshot = await q.get();
+        if (lastVisible) {
+            q = q.startAfter(lastVisible);
+        }
+
+        const snapshot = await q.limit(limitVal).get();
         const expenses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
-        expenses.sort((a,b) => b.date.seconds - a.date.seconds);
-        return expenses;
+        const newLastVisible = snapshot.docs[snapshot.docs.length - 1] || null;
+
+        return { expenses, lastVisible: newLastVisible };
     }, [user]);
 
     const getExpenseById = useCallback(async (expenseId: string): Promise<Expense | null> => {
@@ -361,8 +384,9 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
             const doc = await t.get(expenseRef);
             if (!doc.exists) throw new Error("Expense not found");
             const data = doc.data() as Expense;
-            const newAmountPaid = (data.amountPaid || 0) + payment.amount;
-            const paymentStatus: InvoiceStatus = newAmountPaid >= data.totalAmount ? 'Paid' : 'Partially Paid';
+            const newAmountPaid = parseFloat(((data.amountPaid || 0) + payment.amount).toFixed(2));
+            const totalAmount = parseFloat(data.totalAmount.toFixed(2));
+            const paymentStatus: InvoiceStatus = newAmountPaid >= totalAmount ? 'Paid' : 'Partially Paid';
             t.update(expenseRef, { 
                 amountPaid: newAmountPaid, 
                 paymentStatus, 
@@ -386,8 +410,10 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
                 amountPaid += p.amount; 
                 return p; 
             });
-            const paymentStatus: InvoiceStatus = amountPaid >= data.totalAmount ? 'Paid' : amountPaid > 0 ? 'Partially Paid' : 'Unpaid';
-            t.update(expenseRef, { paymentHistory: newPayments, amountPaid, paymentStatus });
+            const finalAmountPaid = parseFloat(amountPaid.toFixed(2));
+            const totalAmount = parseFloat(data.totalAmount.toFixed(2));
+            const paymentStatus: InvoiceStatus = finalAmountPaid >= totalAmount ? 'Paid' : finalAmountPaid > 0 ? 'Partially Paid' : 'Unpaid';
+            t.update(expenseRef, { paymentHistory: newPayments, amountPaid: finalAmountPaid, paymentStatus });
         });
     }, []);
 
@@ -400,8 +426,9 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
             const paymentToRemove = (data.paymentHistory || []).find(p => p.id === paymentId);
             if (!paymentToRemove) return;
             const newPayments = data.paymentHistory.filter(p => p.id !== paymentId);
-            const newAmountPaid = (data.amountPaid || 0) - paymentToRemove.amount;
-            const paymentStatus: InvoiceStatus = newAmountPaid >= data.totalAmount ? 'Paid' : newAmountPaid > 0 ? 'Partially Paid' : 'Unpaid';
+            const newAmountPaid = parseFloat(((data.amountPaid || 0) - paymentToRemove.amount).toFixed(2));
+            const totalAmount = parseFloat(data.totalAmount.toFixed(2));
+            const paymentStatus: InvoiceStatus = newAmountPaid >= totalAmount ? 'Paid' : newAmountPaid > 0 ? 'Partially Paid' : 'Unpaid';
             t.update(expenseRef, { paymentHistory: newPayments, amountPaid: newAmountPaid, paymentStatus });
         });
     }, []);
@@ -439,9 +466,12 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
     }, [user]);
 
     // POS Sales
-    const getPOSSales = useCallback(async (startDate?: Date, endDate?: Date): Promise<POSSale[]> => {
+    const getPOSSales = useCallback(async (startDate?: Date, endDate?: Date, locationId?: string): Promise<POSSale[]> => {
         if (!user) return [];
         let q: firebase.firestore.Query = db.collection("posSales").where("hospitalId", "==", user.hospitalId);
+        if (locationId && locationId !== 'all') {
+            q = q.where("locationId", "==", locationId);
+        }
          if (startDate) {
             q = q.where("createdAt", ">=", firebase.firestore.Timestamp.fromDate(startDate));
         }

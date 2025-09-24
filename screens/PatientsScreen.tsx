@@ -18,6 +18,7 @@ import AddressInput from '../components/ui/AddressInput';
 import PhotoCaptureInput from '../components/ui/PhotoCaptureInput';
 import { Timestamp } from 'firebase/firestore';
 import Pagination from '../components/ui/Pagination';
+import { usePaginationSettings } from '../hooks/usePaginationSettings';
 
 export const AddPatientModal: React.FC<{
   isOpen: boolean;
@@ -276,7 +277,7 @@ const PatientsScreen: React.FC = () => {
   const [dateRangeEnd, setDateRangeEnd] = useState('');
   
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = usePaginationSettings();
 
   const canWrite = user?.permissions.patients === 'write';
   

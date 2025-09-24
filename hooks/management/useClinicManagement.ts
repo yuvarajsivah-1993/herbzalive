@@ -230,12 +230,19 @@ export const useClinicManagement = (user: AppUser | null, uploadFile: UploadFile
         await createAuditLog(user, 'UPDATE', 'DOCTOR', doctorId, `Updated doctor details for ${data.name}`);
 
         // Also update the associated user document
-        if (updateData.profilePhotoUrl !== undefined) {
-            const usersRef = db.collection('users');
-            const userQuery = await usersRef.where('doctorId', '==', doctorId).limit(1).get();
-            if (!userQuery.empty) {
-                const userDocRef = userQuery.docs[0].ref;
-                await userDocRef.update({ profilePhotoUrl: updateData.profilePhotoUrl });
+        const usersRef = db.collection('users');
+        const userQuery = await usersRef.where('doctorId', '==', doctorId).limit(1).get();
+        if (!userQuery.empty) {
+            const userDocRef = userQuery.docs[0].ref;
+            const userUpdatePayload: { [key: string]: any } = {};
+            if (updateData.profilePhotoUrl !== undefined) {
+                userUpdatePayload.profilePhotoUrl = updateData.profilePhotoUrl;
+            }
+            if (updateData.assignedLocations !== undefined) {
+                userUpdatePayload.assignedLocations = updateData.assignedLocations;
+            }
+            if (Object.keys(userUpdatePayload).length > 0) {
+                await userDocRef.update(userUpdatePayload);
             }
         }
         // Dispatch event to notify other components of the change

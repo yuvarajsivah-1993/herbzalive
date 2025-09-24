@@ -17,6 +17,7 @@ import Textarea from '../components/ui/Textarea';
 import FileInput from '../components/ui/FileInput';
 import CreatableSearchableSelect from '../components/ui/CreatableSearchableSelect';
 import { db } from '../services/firebase';
+import firebase from 'firebase/compat/app';
 
 const currencySymbols: { [key: string]: string } = { USD: '$', EUR: '€', GBP: '£', INR: '₹' };
 
@@ -26,19 +27,28 @@ const formatCurrency = (amount: number, currencyCode: string = 'USD') => {
     return `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-const StatCard: React.FC<{ title: string; value: string; icon: any }> = ({ title, value, icon }) => (
-    <Card className="p-6">
-        <div className="flex items-center">
-            <div className="p-3 rounded-full bg-red-100 dark:bg-slate-800 text-red-600 dark:text-red-400 flex items-center justify-center h-12 w-12">
-                <FontAwesomeIcon icon={icon} className="h-6 w-6" />
+const StatCard: React.FC<{ title: string; value: string; icon: any; color?: 'red' | 'blue' | 'green' | 'yellow' }> = ({ title, value, icon, color = 'red' }) => {
+    const colorClasses = {
+        red: 'bg-red-100 dark:bg-slate-800 text-red-600 dark:text-red-400',
+        blue: 'bg-blue-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400',
+        green: 'bg-green-100 dark:bg-slate-800 text-green-600 dark:text-green-400',
+        yellow: 'bg-yellow-100 dark:bg-slate-800 text-yellow-600 dark:text-yellow-400',
+    };
+
+    return (
+        <Card className="p-6">
+            <div className="flex items-center">
+                <div className={`p-3 rounded-full flex items-center justify-center h-12 w-12 ${colorClasses[color]}`}>
+                    <FontAwesomeIcon icon={icon} className="h-6 w-6" />
+                </div>
+                <div className="ml-4">
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 truncate">{title}</p>
+                    <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{value}</p>
+                </div>
             </div>
-            <div className="ml-4">
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 truncate">{title}</p>
-                <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{value}</p>
-            </div>
-        </div>
-    </Card>
-);
+        </Card>
+    );
+};
 
 const getStatusBadge = (status: InvoiceStatus) => {
     const baseClasses = "px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-full uppercase";
@@ -282,13 +292,15 @@ const ExpenseActionsDropdown: React.FC<{ onView: () => void; onDelete: () => voi
 
 
 const PurchasesScreen: React.FC = () => {
-    const { user, addExpense, deleteExpense } = useAuth();
+    const { user, addExpense, deleteExpense, getExpenses } = useAuth();
     const { addToast } = useToast();
     const navigate = useNavigate();
-    const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
+    const [expenses, setExpenses] = useState<Expense[]>([]);
     const [loading, setLoading] = useState(true);
+    const [hasMore, setHasMore] = useState(true);
+    const [lastVisible, setLastVisible] = useState<firebase.firestore.QueryDocumentSnapshot | null>(null);
     const [activeTab, setActiveTab] = useState('Pending');
-    const [stats, setStats] = useState({ today: 0, week: 0, month: 0 });
+    const [stats, setStats] = useState({ today: 0, week: 0, month: 0, totalDue: 0 });
     const [searchTerm, setSearchTerm] = useState('');
     
     // Modal states
@@ -303,66 +315,97 @@ const PurchasesScreen: React.FC = () => {
     const [startDate, setStartDate] = useState<Date>(startOfMonth);
     const [endDate, setEndDate] = useState<Date>(endOfMonth);
 
-     useEffect(() => {
-        if (!user) return;
+    const fetchExpenses = useCallback(async (reset: boolean = false) => {
+        if (!user || !user.currentLocation) return;
         setLoading(true);
 
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
+        try {
+            const { expenses: newExpenses, lastVisible: newLastVisible } = await getExpenses(
+                user.currentLocation.id,
+                startDate,
+                endDate,
+                20,
+                reset ? null : lastVisible
+            );
 
-        const unsubscribe = db.collection('expenses')
-            .where('hospitalId', '==', user.hospitalId)
-            .where('date', '>=', startDate)
-            .where('date', '<=', end)
-            .onSnapshot(snapshot => {
-                const expensesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
-                expensesData.sort((a,b) => b.date.seconds - a.date.seconds);
-                setAllExpenses(expensesData);
-                setLoading(false);
-            }, err => {
-                console.error(err);
-                addToast("Failed to load expenses in real-time.", "error");
-                setLoading(false);
-            });
-
-        return () => unsubscribe();
-    }, [user, startDate, endDate, addToast]);
+            setExpenses(prev => reset ? newExpenses : [...prev, ...newExpenses]);
+            setLastVisible(newLastVisible);
+            setHasMore(newExpenses.length === 20);
+        } catch (err) {
+            console.error(err);
+            addToast("Failed to load expenses.", "error");
+        } finally {
+            setLoading(false);
+        }
+    }, [user, startDate, endDate, lastVisible, getExpenses, addToast]);
 
     useEffect(() => {
-        if (!user) return;
+        if (user?.currentLocation) {
+            fetchExpenses(true);
+        }
+    }, [user?.currentLocation, startDate, endDate]);
+
+    useEffect(() => {
+        if (!user || !user.currentLocation) return;
 
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const unsubscribe = db.collection('expenses')
+        let monthQuery: firebase.firestore.Query = db.collection('expenses')
             .where('hospitalId', '==', user.hospitalId)
             .where('date', '>=', monthStart)
-            .onSnapshot(snapshot => {
-                const monthExpenses = snapshot.docs.map(doc => doc.data() as Expense);
-                
-                const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                const weekStart = new Date(now);
-                const dayOfWeek = weekStart.getDay();
-                const diff = weekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-                weekStart.setDate(diff);
-                weekStart.setHours(0, 0, 0, 0);
+            .where('locationId', '==', user.currentLocation.id);
 
-                let todayTotal = 0, weekTotal = 0, monthTotal = 0;
-                monthExpenses.forEach(exp => {
-                    const expDate = exp.date.toDate();
-                    monthTotal += exp.totalAmount;
-                    if (expDate >= weekStart) weekTotal += exp.totalAmount;
-                    if (expDate >= todayStart) todayTotal += exp.totalAmount;
-                });
-                setStats({ today: todayTotal, week: weekTotal, month: monthTotal });
+        const monthUnsubscribe = monthQuery.onSnapshot(snapshot => {
+            const monthExpenses = snapshot.docs.map(doc => doc.data() as Expense);
+            
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const weekStart = new Date(now);
+            const dayOfWeek = weekStart.getDay();
+            const diff = weekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+            weekStart.setDate(diff);
+            weekStart.setHours(0, 0, 0, 0);
+
+            let todayTotal = 0, weekTotal = 0, monthTotal = 0;
+            monthExpenses.forEach(exp => {
+                const expDate = exp.date.toDate();
+                monthTotal += exp.totalAmount;
+                if (expDate >= weekStart) weekTotal += exp.totalAmount;
+                if (expDate >= todayStart) todayTotal += exp.totalAmount;
             });
+            setStats(prev => ({ ...prev, today: todayTotal, week: weekTotal, month: monthTotal }));
+        }, error => {
+            console.error("Error fetching month expenses stats: ", error);
+            addToast("Failed to load monthly expense stats.", "error");
+        });
 
-        return () => unsubscribe();
-    }, [user]);
+        let dueQuery: firebase.firestore.Query = db.collection('expenses')
+            .where('hospitalId', '==', user.hospitalId)
+            .where('paymentStatus', 'in', ['Unpaid', 'Partially Paid'])
+            .where('locationId', '==', user.currentLocation.id);
+
+        const dueUnsubscribe = dueQuery.onSnapshot(snapshot => {
+            let totalDue = 0;
+            snapshot.forEach(doc => {
+                const expense = doc.data() as Expense;
+                totalDue += (expense.totalAmount - expense.amountPaid);
+            });
+            setStats(prev => ({ ...prev, totalDue }));
+        }, error => {
+            console.error("Error fetching due expenses stats: ", error);
+            addToast("Failed to load due expense stats.", "error");
+        });
+
+        return () => {
+            monthUnsubscribe();
+            dueUnsubscribe();
+        };
+    }, [user, addToast]);
 
 
     const handleAddExpense = async (data: NewExpenseData) => {
         await addExpense(data);
+        fetchExpenses(true); // Refetch expenses after adding a new one
     };
     
     const handleDeleteRequest = (expense: Expense) => {
@@ -374,6 +417,7 @@ const PurchasesScreen: React.FC = () => {
         try {
             await deleteExpense(expenseToDelete.id);
             addToast('Expense deleted successfully!', 'success');
+            fetchExpenses(true); // Refetch expenses after deleting
         } catch (e) {
             addToast('Failed to delete expense.', 'error');
         } finally {
@@ -381,8 +425,8 @@ const PurchasesScreen: React.FC = () => {
         }
     };
 
-    const pendingExpenses = useMemo(() => allExpenses.filter(e => e.paymentStatus === 'Unpaid' || e.paymentStatus === 'Partially Paid'), [allExpenses]);
-    const paidExpenses = useMemo(() => allExpenses.filter(e => e.paymentStatus === 'Paid'), [allExpenses]);
+    const pendingExpenses = useMemo(() => expenses.filter(e => e.paymentStatus === 'Unpaid' || e.paymentStatus === 'Partially Paid'), [expenses]);
+    const paidExpenses = useMemo(() => expenses.filter(e => e.paymentStatus === 'Paid'), [expenses]);
     const expensesForTab = activeTab === 'Pending' ? pendingExpenses : paidExpenses;
 
     const displayedExpenses = useMemo(() => {
@@ -399,10 +443,11 @@ const PurchasesScreen: React.FC = () => {
             <AddExpenseModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSave={handleAddExpense} />
             {expenseToDelete && <ConfirmationModal isOpen={true} onClose={() => setExpenseToDelete(null)} onConfirm={handleDeleteExpense} title="Delete Expense" message={`Are you sure you want to delete expense ${expenseToDelete.expenseId}?`} confirmButtonText="Delete" confirmButtonVariant="danger" />}
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard title="Expenses Today" value={formatCurrency(stats.today, currency)} icon={faFileInvoiceDollar} />
-                <StatCard title="Expenses this Week" value={formatCurrency(stats.week, currency)} icon={faFileInvoiceDollar} />
-                <StatCard title="Expenses this Month" value={formatCurrency(stats.month, currency)} icon={faFileInvoiceDollar} />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <StatCard title="Expenses Today" value={formatCurrency(stats.today, currency)} icon={faFileInvoiceDollar} color="blue" />
+                <StatCard title="Expenses this Week" value={formatCurrency(stats.week, currency)} icon={faFileInvoiceDollar} color="yellow" />
+                <StatCard title="Expenses this Month" value={formatCurrency(stats.month, currency)} icon={faFileInvoiceDollar} color="green" />
+                <StatCard title="Total Due" value={formatCurrency(stats.totalDue, currency)} icon={faMoneyBillWave} color="red" />
             </div>
 
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
@@ -418,9 +463,11 @@ const PurchasesScreen: React.FC = () => {
                 </div>
 
                 <div className="p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="relative">
-                        <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
-                        <input type="text" placeholder="Search ref or category..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 w-full sm:w-64 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition" />
+                    <div className="flex items-center gap-4">
+                        <div className="relative">
+                            <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
+                            <input type="text" placeholder="Search ref or category..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 w-full sm:w-64 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition" />
+                        </div>
                     </div>
                     <div className="flex items-center space-x-2">
                         {user?.permissions.expenses === 'write' && <Button variant="primary" onClick={() => setIsAddModalOpen(true)}><FontAwesomeIcon icon={faPlus} className="mr-2"/>Add Expense</Button>}
@@ -441,7 +488,7 @@ const PurchasesScreen: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-800">
-                            {loading ? (
+                            {loading && expenses.length === 0 ? (
                                 <tr><td colSpan={7} className="text-center p-6 text-slate-500">Loading expenses...</td></tr>
                             ) : displayedExpenses.length === 0 ? (
                                 <tr><td colSpan={7} className="text-center p-6 text-slate-500">No expenses found.</td></tr>
@@ -463,6 +510,13 @@ const PurchasesScreen: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+                {hasMore && (
+                    <div className="p-4 text-center">
+                        <Button onClick={() => fetchExpenses()} disabled={loading}>
+                            {loading ? 'Loading...' : 'Load More'}
+                        </Button>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -538,18 +592,29 @@ const AddExpenseModal: React.FC<{
         }
         setLoading(true);
         try {
-            await onSave({
+            const dataToSave: NewExpenseData = {
                 date: new Date(date),
                 category,
                 subtotal: parseFloat(subtotal),
-                taxGroupId: taxGroupId || undefined,
-                discountPercentage: parseFloat(discountPercentage) || undefined,
                 note,
                 document: documentFile,
                 isRecurring,
-                recurringFrequency: isRecurring ? recurringFrequency : undefined,
-                paymentTerms: paymentTerms ? parseInt(paymentTerms, 10) : undefined,
-            });
+            };
+
+            if (taxGroupId) {
+                dataToSave.taxGroupId = taxGroupId;
+            }
+            if (discountPercentage) {
+                dataToSave.discountPercentage = parseFloat(discountPercentage);
+            }
+            if (isRecurring) {
+                dataToSave.recurringFrequency = recurringFrequency;
+            }
+            if (paymentTerms) {
+                dataToSave.paymentTerms = parseInt(paymentTerms, 10);
+            }
+
+            await onSave(dataToSave);
             addToast("Expense added successfully!", "success");
             onClose();
         } catch (error: any) {

@@ -13,7 +13,13 @@ export const usePayrollManagement = (user: AppUser | null, uploadFile: UploadFil
 
     const getEmployees = useCallback(async (): Promise<Employee[]> => {
         if (!user || !user.hospitalId) return [];
-        const snapshot = await db.collection('employees').where('hospitalId', '==', user.hospitalId).get();
+        let q: firebase.firestore.Query = db.collection('employees').where('hospitalId', '==', user.hospitalId);
+
+        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+            q = q.where("locationId", "==", user.currentLocation.id);
+        }
+
+        const snapshot = await q.get();
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
     }, [user]);
 
@@ -189,7 +195,13 @@ export const usePayrollManagement = (user: AppUser | null, uploadFile: UploadFil
 
     const getPayrollRuns = useCallback(async (): Promise<PayrollRun[]> => {
         if (!user) return [];
-        const snapshot = await db.collection('payrollRuns').where('hospitalId', '==', user.hospitalId).get();
+        let q: firebase.firestore.Query = db.collection('payrollRuns').where('hospitalId', '==', user.hospitalId);
+
+        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+            q = q.where("locationId", "==", user.currentLocation.id);
+        }
+
+        const snapshot = await q.get();
         const runs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollRun));
         runs.sort((a,b) => b.period.localeCompare(a.period));
         return runs;
@@ -197,7 +209,13 @@ export const usePayrollManagement = (user: AppUser | null, uploadFile: UploadFil
     
     const getLoans = useCallback(async (): Promise<Loan[]> => {
         if (!user) return [];
-        const snapshot = await db.collection('loans').where('hospitalId', '==', user.hospitalId).get();
+        let q: firebase.firestore.Query = db.collection('loans').where('hospitalId', '==', user.hospitalId);
+
+        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+            q = q.where("locationId", "==", user.currentLocation.id);
+        }
+
+        const snapshot = await q.get();
         const loans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Loan));
         loans.sort((a,b) => b.disbursementDate.seconds - a.disbursementDate.seconds);
         return loans;

@@ -7,6 +7,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../context/ThemeContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowUp, faArrowDown, faStar, faChevronDown, faCalendarDays, faReceipt, faStethoscope } from '@fortawesome/free-solid-svg-icons';
 import { Appointment, Expense, Invoice, PatientDocument, StockItem, Treatment, POSSale } from '../types';
@@ -104,13 +105,13 @@ export const FilterDropdown: React.FC<{ value: Period; onChange: (value: Period)
 };
 
 const renderActiveShape = (props: any) => {
-    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, value, currency, name } = props;
+    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, value, currency, name, tickColor } = props;
     const formattedValue = formatCurrency(value, currency);
     const fontSizeClass = formattedValue.length > 12 ? 'text-xl' : 'text-2xl';
 
     return (
       <g>
-        <text x={cx} y={cy - 10} dy={8} textAnchor="middle" fill="#94a3b8" className="text-sm">{name || payload.name || 'Total'}</text>
+        <text x={cx} y={cy - 10} dy={8} textAnchor="middle" fill={tickColor} className="text-sm">{name || payload.name || 'Total'}</text>
         <text x={cx} y={cy + 15} dy={8} textAnchor="middle" fill="#1e293b" className={`dark:fill-white font-bold ${fontSizeClass}`}>{formattedValue}</text>
         <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius} startAngle={startAngle} endAngle={endAngle} fill={fill} />
         <Sector cx={cx} cy={cy} startAngle={startAngle} endAngle={endAngle} innerRadius={outerRadius + 6} outerRadius={outerRadius + 10} fill={fill} />
@@ -121,14 +122,21 @@ const renderActiveShape = (props: any) => {
 
 // --- CARD COMPONENTS ---
 
+const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+};
+
 const DashboardHeader: React.FC<{ user: any }> = ({ user }) => (
     <div>
-        <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Good morning, {user?.name.split(' ')[0] || 'Admin'}!</h1>
+        <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">{getGreeting()}, {user?.name.split(' ')[0] || 'Admin'}!</h1>
         <p className="text-slate-500 dark:text-slate-400 mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
     </div>
 );
 
-const CashflowCard: React.FC<{ data: any, currency: string, period: Period, onPeriodChange: (p: Period) => void }> = ({ data, currency, period, onPeriodChange }) => {
+const CashflowCard: React.FC<{ data: any, currency: string, period: Period, onPeriodChange: (p: Period) => void, tickColor: string }> = ({ data, currency, period, onPeriodChange, tickColor }) => {
     const formattedTotal = formatCurrency(data.total, currency);
     const fontSizeClass = formattedTotal.length > 12 ? 'text-2xl' : 'text-3xl';
     
@@ -151,8 +159,8 @@ const CashflowCard: React.FC<{ data: any, currency: string, period: Period, onPe
             <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-slate-200 dark:stroke-slate-800" />
-                    <XAxis dataKey="name" tick={{ fill: 'var(--tw-text-slate-500)' }} axisLine={false} tickLine={false} />
-                    <YAxis tickFormatter={(val) => `${val/1000}K`} tick={{ fill: 'var(--tw-text-slate-500)' }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="name" tick={{ fill: tickColor }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={(val) => `${val/1000}K`} tick={{ fill: tickColor }} axisLine={false} tickLine={false} />
                     <Tooltip contentStyle={{ backgroundColor: 'var(--tw-bg-white)', borderRadius: '0.5rem', border: '1px solid var(--tw-border-slate-200)' }} wrapperClassName="dark:!bg-slate-900 dark:!border-slate-700" />
                     <Line type="monotone" dataKey="cashflow" stroke="#3b82f6" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 8 }} />
                 </LineChart>
@@ -161,7 +169,7 @@ const CashflowCard: React.FC<{ data: any, currency: string, period: Period, onPe
     </Card>
 )};
 
-const ExpensesCard: React.FC<{ data: any, currency: string, period: Period, onPeriodChange: (p: Period) => void }> = ({ data, currency, period, onPeriodChange }) => {
+const ExpensesCard: React.FC<{ data: any, currency: string, period: Period, onPeriodChange: (p: Period) => void, tickColor: string }> = ({ data, currency, period, onPeriodChange, tickColor }) => {
     const [activeIndex, setActiveIndex] = useState(0);
     const onPieEnter = useCallback((_: any, index: number) => { setActiveIndex(index); }, []);
     
@@ -172,7 +180,7 @@ const ExpensesCard: React.FC<{ data: any, currency: string, period: Period, onPe
                 <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                            <Pie {...{ activeIndex: activeIndex, activeShape: (props: any) => renderActiveShape({ ...props, value: data.total, currency, name: 'Total Expense' }), data: data.chartData, cx: "50%", cy: "50%", innerRadius: 60, outerRadius: 80, dataKey: "value", onMouseEnter: onPieEnter }}>
+                            <Pie {...{ activeIndex: activeIndex, activeShape: (props: any) => renderActiveShape({ ...props, value: data.total, currency, name: 'Total Expense', tickColor }), data: data.chartData, cx: "50%", cy: "50%", innerRadius: 60, outerRadius: 80, dataKey: "value", onMouseEnter: onPieEnter }}>
                                 {data.chartData.map((_entry: any, index: number) => (<Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />))}
                             </Pie>
                         </PieChart>
@@ -192,7 +200,7 @@ const ExpensesCard: React.FC<{ data: any, currency: string, period: Period, onPe
     );
 };
 
-const IncomeExpenseCard: React.FC<{ data: any, currency: string, period: Period, onPeriodChange: (p: Period) => void }> = ({ data, currency, period, onPeriodChange }) => {
+const IncomeExpenseCard: React.FC<{ data: any, currency: string, period: Period, onPeriodChange: (p: Period) => void, tickColor: string, legendColor: string }> = ({ data, currency, period, onPeriodChange, tickColor, legendColor }) => {
     const formattedIncome = formatCurrency(data.totalIncome, currency);
     const incomeFontSize = formattedIncome.length > 12 ? 'text-xl' : 'text-2xl';
     const formattedExpenses = formatCurrency(data.totalExpenses, currency);
@@ -209,10 +217,10 @@ const IncomeExpenseCard: React.FC<{ data: any, currency: string, period: Period,
             <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-slate-200 dark:stroke-slate-800" />
-                    <XAxis dataKey="name" tick={{ fill: 'var(--tw-text-slate-500)' }} axisLine={false} tickLine={false}/>
-                    <YAxis tickFormatter={(val) => `${val/1000}K`} tick={{ fill: 'var(--tw-text-slate-500)' }} axisLine={false} tickLine={false}/>
+                    <XAxis dataKey="name" tick={{ fill: tickColor }} axisLine={false} tickLine={false}/>
+                    <YAxis tickFormatter={(val) => `${val/1000}K`} tick={{ fill: tickColor }} axisLine={false} tickLine={false}/>
                     <Tooltip contentStyle={{ backgroundColor: 'var(--tw-bg-white)', borderRadius: '0.5rem', border: '1px solid var(--tw-border-slate-200)' }} wrapperClassName="dark:!bg-slate-900 dark:!border-slate-700" />
-                    <Legend />
+                    <Legend wrapperStyle={{ color: legendColor }} />
                     <Bar dataKey="treatmentIncome" name="Treatment Income" fill="#16a34a" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="posIncome" name="POS Income" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="expenses" fill="#f97316" radius={[4, 4, 0, 0]} />
@@ -272,15 +280,15 @@ const StockAvailabilityCard: React.FC<{ data: any, currency: string }> = ({ data
     );
 };
 
-const TreatmentSalesCard: React.FC<{ data: any, currency: string, period: Period, onPeriodChange: (p: Period) => void }> = ({ data, currency, period, onPeriodChange }) => (
+const TreatmentSalesCard: React.FC<{ data: any, currency: string, period: Period, onPeriodChange: (p: Period) => void, tickColor: string }> = ({ data, currency, period, onPeriodChange, tickColor }) => (
     <Card>
         <div className="flex justify-between items-center"><h3 className="text-lg font-semibold">Treatment Revenue</h3><FilterDropdown value={period} onChange={onPeriodChange} /></div>
         <div className="h-80 mt-4 -ml-6 flex-grow">
             <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-slate-200 dark:stroke-slate-800" />
-                    <XAxis type="number" tickFormatter={(val) => formatCurrency(val, currency).slice(0,-3)} tick={{ fill: 'var(--tw-text-slate-500)' }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={120} tick={{ fill: 'var(--tw-text-slate-500)', width: 110 }} tickLine={false} axisLine={false} />
+                    <XAxis type="number" tickFormatter={(val) => formatCurrency(val, currency).slice(0,-3)} tick={{ fill: tickColor }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={120} tick={{ fill: tickColor, width: 110 }} tickLine={false} axisLine={false} />
                     <Tooltip contentStyle={{ backgroundColor: 'var(--tw-bg-white)', borderRadius: '0.5rem', border: '1px solid var(--tw-border-slate-200)' }} wrapperClassName="dark:!bg-slate-900 dark:!border-slate-700" formatter={(value: number) => formatCurrency(value, currency)} />
                     <Bar dataKey="revenue" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20}>
                         {data.map((_entry: any, index: number) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
@@ -291,7 +299,7 @@ const TreatmentSalesCard: React.FC<{ data: any, currency: string, period: Period
     </Card>
 );
 
-const ReservationsCard: React.FC<{ data: any, period: Period, onPeriodChange: (p: Period) => void }> = ({ data, period, onPeriodChange }) => {
+const ReservationsCard: React.FC<{ data: any, period: Period, onPeriodChange: (p: Period) => void, tickColor: string }> = ({ data, period, onPeriodChange, tickColor }) => {
     const [activeIndex, setActiveIndex] = useState(0);
     const onPieEnter = useCallback((_: any, index: number) => { setActiveIndex(index); }, []);
     return (
@@ -301,7 +309,7 @@ const ReservationsCard: React.FC<{ data: any, period: Period, onPeriodChange: (p
                 <div className="h-48">
                      <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                            <Pie {...{ activeIndex: activeIndex, activeShape: (props: any) => renderActiveShape({ ...props, value: data.total, name: 'Total Reservations' }), data: data.chartData, cx: "50%", cy: "50%", innerRadius: 60, outerRadius: 80, dataKey: "value", onMouseEnter: onPieEnter }}>
+                            <Pie {...{ activeIndex: activeIndex, activeShape: (props: any) => renderActiveShape({ ...props, value: data.total, name: 'Total Reservations', tickColor }), data: data.chartData, cx: "50%", cy: "50%", innerRadius: 60, outerRadius: 80, dataKey: "value", onMouseEnter: onPieEnter }}>
                                 {data.chartData.map((_entry: any, index: number) => (<Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />))}
                             </Pie>
                         </PieChart>
@@ -315,17 +323,17 @@ const ReservationsCard: React.FC<{ data: any, period: Period, onPeriodChange: (p
     );
 };
 
-const POSSalesCard: React.FC<{ data: any, currency: string, period: Period, onPeriodChange: (p: Period) => void }> = ({ data, currency, period, onPeriodChange }) => (
+const POSSalesCard: React.FC<{ data: any, currency: string, period: Period, onPeriodChange: (p: Period) => void, tickColor: string, legendColor: string }> = ({ data, currency, period, onPeriodChange, tickColor, legendColor }) => (
     <Card>
         <div className="flex justify-between items-center"><h3 className="text-lg font-semibold">POS Sales</h3><FilterDropdown value={period} onChange={onPeriodChange} /></div>
         <div className="h-64 mt-4 -ml-6 flex-grow">
             <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-slate-200 dark:stroke-slate-800" />
-                    <XAxis dataKey="name" tick={{ fill: 'var(--tw-text-slate-500)' }} axisLine={false} tickLine={false} />
-                    <YAxis tickFormatter={(val) => formatCurrency(val, currency).slice(0,-3)} tick={{ fill: 'var(--tw-text-slate-500)' }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="name" tick={{ fill: tickColor }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={(val) => formatCurrency(val, currency).slice(0,-3)} tick={{ fill: tickColor }} axisLine={false} tickLine={false} />
                     <Tooltip contentStyle={{ backgroundColor: 'var(--tw-bg-white)', borderRadius: '0.5rem', border: '1px solid var(--tw-border-slate-200)' }} wrapperClassName="dark:!bg-slate-900 dark:!border-slate-700" formatter={(value: number) => formatCurrency(value, currency)} />
-                    <Legend />
+                    <Legend wrapperStyle={{ color: legendColor }} />
                     <Line type="monotone" dataKey="sales" name="POS Sales" stroke="#10b981" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 8 }} />
                     <Line type="monotone" dataKey="profit" name="Profit" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 5" />
                 </LineChart>
@@ -338,7 +346,11 @@ const POSSalesCard: React.FC<{ data: any, currency: string, period: Period, onPe
 // --- MAIN COMPONENT ---
 const AdminDashboard: React.FC = () => {
     const { user, patients, stockItems } = useAuth();
+    const { theme } = useTheme();
     const [loading, setLoading] = useState(true);
+    
+    const tickColor = theme === 'dark' ? '#94a3b8' : '#64748b'; // slate-400 dark, slate-500 light
+    const legendColor = theme === 'dark' ? '#cbd5e1' : '#475569'; // slate-300 dark, slate-600 light
     
     // Period states
     const [cashflowPeriod, setCashflowPeriod] = useState<Period>('last-12-months');
@@ -358,7 +370,12 @@ const AdminDashboard: React.FC = () => {
         if (!user || !user.hospitalId) return;
 
         const createListener = (collectionName: string, setter: React.Dispatch<any>, dateField: string) => {
-            const query = db.collection(collectionName).where('hospitalId', '==', user.hospitalId);
+            let query: firebase.firestore.Query = db.collection(collectionName).where('hospitalId', '==', user.hospitalId);
+
+            if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+                query = query.where("locationId", "==", user.currentLocation.id);
+            }
+
             return query.onSnapshot(snapshot => {
                 const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 setter(data);
@@ -375,7 +392,7 @@ const AdminDashboard: React.FC = () => {
         setLoading(false);
 
         return () => unsubscribers.forEach(unsub => unsub());
-    }, [user]);
+    }, [user, user?.currentLocation?.id]);
     
     const rawPatients = patients;
     const rawStocks = stockItems;
@@ -580,15 +597,15 @@ const AdminDashboard: React.FC = () => {
         <div className="p-4 sm:p-6 lg:p-8 bg-slate-100 dark:bg-slate-950 min-h-full">
             <DashboardHeader user={user} />
             <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
-                <div className="lg:col-span-3"><CashflowCard data={cashflowData} currency={user?.hospitalCurrency || 'USD'} period={cashflowPeriod} onPeriodChange={setCashflowPeriod} /></div>
-                <div className="lg:col-span-2"><ExpensesCard data={expensesData} currency={user?.hospitalCurrency || 'USD'} period={expensesPeriod} onPeriodChange={setExpensesPeriod} /></div>
-                <div className="lg:col-span-3"><IncomeExpenseCard data={incomeExpenseData} currency={user?.hospitalCurrency || 'USD'} period={incomeExpensePeriod} onPeriodChange={setIncomeExpensePeriod} /></div>
+                <div className="lg:col-span-3"><CashflowCard data={cashflowData} currency={user?.hospitalCurrency || 'USD'} period={cashflowPeriod} onPeriodChange={setCashflowPeriod} tickColor={tickColor} /></div>
+                <div className="lg:col-span-2"><ExpensesCard data={expensesData} currency={user?.hospitalCurrency || 'USD'} period={expensesPeriod} onPeriodChange={setExpensesPeriod} tickColor={tickColor} /></div>
+                <div className="lg:col-span-3"><IncomeExpenseCard data={incomeExpenseData} currency={user?.hospitalCurrency || 'USD'} period={incomeExpensePeriod} onPeriodChange={setIncomeExpensePeriod} tickColor={tickColor} legendColor={legendColor} /></div>
                 <div className="lg:col-span-2"><PatientsCard data={patientData} /></div>
                 
-                <div className="lg:col-span-3"><TreatmentSalesCard data={treatmentSalesData} currency={user?.hospitalCurrency || 'USD'} period={treatmentSalesPeriod} onPeriodChange={setTreatmentSalesPeriod} /></div>
-                <div className="lg:col-span-2"><ReservationsCard data={reservationsData} period={reservationsPeriod} onPeriodChange={setReservationsPeriod} /></div>
+                <div className="lg:col-span-3"><TreatmentSalesCard data={treatmentSalesData} currency={user?.hospitalCurrency || 'USD'} period={treatmentSalesPeriod} onPeriodChange={setTreatmentSalesPeriod} tickColor={tickColor} /></div>
+                <div className="lg:col-span-2"><ReservationsCard data={reservationsData} period={reservationsPeriod} onPeriodChange={setReservationsPeriod} tickColor={tickColor} /></div>
 
-                <div className="lg:col-span-5"><POSSalesCard data={posSalesData} currency={user?.hospitalCurrency || 'USD'} period={posSalesPeriod} onPeriodChange={setPosSalesPeriod} /></div>
+                <div className="lg:col-span-5"><POSSalesCard data={posSalesData} currency={user?.hospitalCurrency || 'USD'} period={posSalesPeriod} onPeriodChange={setPosSalesPeriod} tickColor={tickColor} legendColor={legendColor} /></div>
                 <div className="lg:col-span-5"><StockAvailabilityCard data={stockData} currency={user?.hospitalCurrency || 'USD'} /></div>
             </div>
         </div>

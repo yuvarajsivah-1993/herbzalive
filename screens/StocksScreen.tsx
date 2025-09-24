@@ -16,7 +16,9 @@ import Textarea from '../components/ui/Textarea';
 import FileInput from '../components/ui/FileInput';
 import CreatableSearchableSelect from '../components/ui/CreatableSearchableSelect';
 import Pagination from '../components/ui/Pagination';
+import { usePaginationPersistence } from '../hooks/usePaginationPersistence';
 import { Tax, TaxGroup, StockBatch, InitialBatchDetails } from '../types';
+import { usePaginationSettings } from '../hooks/usePaginationSettings';
 
 const currencySymbols: { [key: string]: string } = { USD: '$', EUR: '€', GBP: '£', INR: '₹' };
 
@@ -1188,26 +1190,26 @@ const StocksScreen: React.FC = () => {
     const [invCategoryFilter, setInvCategoryFilter] = useState('all');
     const [invStatusFilter, setInvStatusFilter] = useState('all');
     const [invCurrentPage, setInvCurrentPage] = useState(1);
-    const [invItemsPerPage, setInvItemsPerPage] = useState(25);
+    const [invItemsPerPage, setInvItemsPerPage] = usePaginationSettings();
     
     const [orderSearch, setOrderSearch] = useState('');
     const [orderVendorFilter, setOrderVendorFilter] = useState('all');
     const [orderStatusFilter, setOrderStatusFilter] = useState('all');
     const [orderPaymentStatusFilter, setOrderPaymentStatusFilter] = useState('all');
     const [orderCurrentPage, setOrderCurrentPage] = useState(1);
-    const [orderItemsPerPage, setOrderItemsPerPage] = useState(25);
+    const [orderItemsPerPage, setOrderItemsPerPage] = usePaginationSettings();
     
     const [returnSearch, setReturnSearch] = useState('');
     const [returnVendorFilter, setReturnVendorFilter] = useState('all');
     const [returnCurrentPage, setReturnCurrentPage] = useState(1);
-    const [returnItemsPerPage, setReturnItemsPerPage] = useState(25);
+    const [returnItemsPerPage, setReturnItemsPerPage] = usePaginationSettings();
     
     const [transferSearch, setTransferSearch] = useState('');
     const [transferFromFilter, setTransferFromFilter] = useState('all');
     const [transferToFilter, setTransferToFilter] = useState('all');
     const [transferStatusFilter, setTransferStatusFilter] = useState('all');
     const [transferCurrentPage, setTransferCurrentPage] = useState(1);
-    const [transferItemsPerPage, setTransferItemsPerPage] = useState(25);
+    const [transferItemsPerPage, setTransferItemsPerPage] = usePaginationSettings();
 
     useEffect(() => {
         const savedState = sessionStorage.getItem('stocksListState');
@@ -1466,7 +1468,7 @@ const StocksScreen: React.FC = () => {
                                     </tr>
                                 )})}</tbody></table>
                             </div>
-                            <Pagination currentPage={invCurrentPage} totalPages={Math.ceil(filteredStocks.length / invItemsPerPage)} onPageChange={setInvCurrentPage} itemsPerPage={invItemsPerPage} onItemsPerPageChange={size => setInvItemsPerPage(size)} totalItems={filteredStocks.length} itemsOnPage={paginatedStocks.length} />
+                            <Pagination currentPage={invCurrentPage} totalPages={Math.ceil(filteredStocks.length / invItemsPerPage)} onPageChange={setInvCurrentPage} itemsPerPage={invItemsPerPage} onItemsPerPageChange={setInvItemsPerPage} totalItems={filteredStocks.length} itemsOnPage={paginatedStocks.length} />
                         </div>
                     )}
 
@@ -1508,7 +1510,7 @@ const StocksScreen: React.FC = () => {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{order.createdBy || 'N/A'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">{order.status !== 'Complete' && order.status !== 'Cancelled' && <Button size="sm" variant="light" onClick={(e) => { e.stopPropagation(); setOrderToReceive(order); }}>Receive</Button>}</td>
                                 </tr>))}</tbody></table></div>
-                             <Pagination currentPage={orderCurrentPage} totalPages={Math.ceil(filteredOrders.length / orderItemsPerPage)} onPageChange={setOrderCurrentPage} itemsPerPage={orderItemsPerPage} onItemsPerPageChange={size => setOrderItemsPerPage(size)} totalItems={filteredOrders.length} itemsOnPage={paginatedOrders.length} />
+                             <Pagination currentPage={orderCurrentPage} totalPages={Math.ceil(filteredOrders.length / orderItemsPerPage)} onPageChange={setOrderCurrentPage} itemsPerPage={orderItemsPerPage} onItemsPerPageChange={setOrderItemsPerPage} totalItems={filteredOrders.length} itemsOnPage={paginatedOrders.length} />
                         </div>
                     )}
                     
@@ -1542,7 +1544,7 @@ const StocksScreen: React.FC = () => {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{ret.createdBy || 'N/A'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-red-600 dark:text-red-500">-{formatCurrency(ret.totalReturnValue, user?.hospitalCurrency)}</td>
                                 </tr>))}</tbody></table></div>
-                            <Pagination currentPage={returnCurrentPage} totalPages={Math.ceil(filteredReturns.length / returnItemsPerPage)} onPageChange={setReturnCurrentPage} itemsPerPage={returnItemsPerPage} onItemsPerPageChange={size => setReturnItemsPerPage(size)} totalItems={filteredReturns.length} itemsOnPage={paginatedReturns.length} />
+                            <Pagination currentPage={returnCurrentPage} totalPages={Math.ceil(filteredReturns.length / returnItemsPerPage)} onPageChange={setReturnCurrentPage} itemsPerPage={returnItemsPerPage} onItemsPerPageChange={setReturnItemsPerPage} totalItems={filteredReturns.length} itemsOnPage={paginatedReturns.length} />
                         </div>
                     )}
                     {activeTab === 'Transfers' && (
@@ -1592,7 +1594,7 @@ const StocksScreen: React.FC = () => {
                                     )}
                                 </tbody>
                             </table></div>
-                             <Pagination currentPage={transferCurrentPage} totalPages={Math.ceil(filteredTransfers.length / transferItemsPerPage)} onPageChange={setTransferCurrentPage} itemsPerPage={transferItemsPerPage} onItemsPerPageChange={size => setTransferItemsPerPage(size)} totalItems={filteredTransfers.length} itemsOnPage={paginatedTransfers.length} />
+                             <Pagination currentPage={transferCurrentPage} totalPages={Math.ceil(filteredTransfers.length / transferItemsPerPage)} onPageChange={setTransferCurrentPage} itemsPerPage={transferItemsPerPage} onItemsPerPageChange={setTransferItemsPerPage} totalItems={filteredTransfers.length} itemsOnPage={paginatedTransfers.length} />
                         </div>
                     )}
                 </div>

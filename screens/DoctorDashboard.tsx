@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../context/ThemeContext';
 import { Appointment, Consultation, Invoice, PatientDocument } from '../types';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -86,7 +87,11 @@ const AppointmentCard: React.FC<{ appointment: Appointment, patient?: PatientDoc
 
 const DoctorDashboard: React.FC = () => {
     const { user, patients } = useAuth();
+    const { theme } = useTheme();
     const [loading, setLoading] = useState(true);
+
+    const tickColor = theme === 'dark' ? '#94a3b8' : '#64748b'; // slate-400 dark, slate-500 light
+    const legendColor = theme === 'dark' ? '#cbd5e1' : '#475569'; // slate-300 dark, slate-600 light
     
     const [todaysAppointments, setTodaysAppointments] = useState<Appointment[]>([]);
     const [patientsMap, setPatientsMap] = useState<Map<string, PatientDocument>>(new Map());
@@ -114,7 +119,11 @@ const DoctorDashboard: React.FC = () => {
         const unsubscribers: (() => void)[] = [];
 
         const createListener = (query: firebase.firestore.Query, callback: (snapshot: firebase.firestore.QuerySnapshot) => void) => {
-            const unsubscribe = query.onSnapshot(callback, (error) => {
+            let finalQuery = query;
+            if (user.currentLocation) {
+                finalQuery = finalQuery.where("locationId", "==", user.currentLocation.id);
+            }
+            const unsubscribe = finalQuery.onSnapshot(callback, (error) => {
                 console.error("Firestore listener error:", error);
                 addToast("Error fetching real-time data.", "error");
             });
@@ -198,7 +207,7 @@ const DoctorDashboard: React.FC = () => {
         setLoading(false);
         return () => unsubscribers.forEach(unsub => unsub());
     
-    }, [user, addToast]);
+    }, [user, addToast, user.currentLocation]);
 
     useEffect(() => {
         setPatientsMap(new Map(patients.map(p => [p.id, p])));
@@ -213,10 +222,17 @@ const DoctorDashboard: React.FC = () => {
         return <div className="p-8 text-center text-slate-500 dark:text-slate-400">Loading Dashboard...</div>;
     }
 
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Good morning';
+        if (hour < 18) return 'Good afternoon';
+        return 'Good evening';
+    };
+
     return (
         <div className="p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 min-h-full">
             <div>
-                <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Good morning, Dr. {user?.name || 'Doctor'}!</h1>
+                <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">{getGreeting()}, Dr. {user?.name || 'Doctor'}!</h1>
                 <p className="text-slate-500 dark:text-slate-400 mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
             </div>
 
@@ -253,8 +269,8 @@ const DoctorDashboard: React.FC = () => {
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={appointmentOverviewData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-slate-200 dark:stroke-slate-800" />
-                                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--tw-text-slate-500)' }} axisLine={false} tickLine={false} />
-                                    <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: 'var(--tw-text-slate-500)' }} axisLine={false} tickLine={false} />
+                                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: tickColor }} axisLine={false} tickLine={false} />
+                                    <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: tickColor }} axisLine={false} tickLine={false} />
                                     <Tooltip wrapperClassName="dark:!bg-slate-800 dark:!border-slate-700" contentStyle={{ backgroundColor: 'var(--tw-bg-white)', borderRadius: '0.5rem', border: '1px solid var(--tw-border-slate-200)' }}/>
                                     <Bar dataKey="appointments" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                                 </BarChart>
@@ -284,8 +300,8 @@ const DoctorDashboard: React.FC = () => {
                      <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={topDiagnosesData} layout="vertical" margin={{ top: 5, right: 30, left: 50, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-slate-200 dark:stroke-slate-800" />
-                            <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--tw-text-slate-500)' }} axisLine={false} tickLine={false} />
-                            <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 12, fill: 'var(--tw-text-slate-500)', width: 140 }} axisLine={false} tickLine={false} />
+                            <XAxis type="number" allowDecimals={false} tick={{ fill: tickColor }} axisLine={false} tickLine={false} />
+                            <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 12, fill: tickColor, width: 140 }} axisLine={false} tickLine={false} />
                             <Tooltip wrapperClassName="dark:!bg-slate-800 dark:!border-slate-700" contentStyle={{ backgroundColor: 'var(--tw-bg-white)', borderRadius: '0.5rem', border: '1px solid var(--tw-border-slate-200)' }} />
                             <Bar dataKey="count" name="Cases" fill="#10b981" radius={[0, 4, 4, 0]}>
                                 {topDiagnosesData.map((entry, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}

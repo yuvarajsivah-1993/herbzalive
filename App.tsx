@@ -580,6 +580,10 @@ const PrintPreviewModal: React.FC = () => {
         ? user.hospitalInvoiceSettings?.treatmentInvoice 
         : user.hospitalInvoiceSettings?.posInvoice;
 
+    console.log("PrintPreviewModal - settings:", settings);
+    console.log("PrintPreviewModal - printerType:", settings?.printerType);
+    console.log("PrintPreviewModal - design:", settings?.design);
+
     if (!settings) {
         // FIX: Use setInvoiceToPrint from context to close the modal
         setInvoiceToPrint(null);
@@ -929,7 +933,7 @@ const ProtectedLayout: React.FC = () => {
     const routeKey = lastSegment || 'dashboard';
     const baseTitle = routeTitles[routeKey] || 'Zendenta Portal';
     
-    return currentLocation ? `${baseTitle} - ${currentLocation.name}` : baseTitle;
+    return baseTitle;
   };
   
   const currentTitle = getTitleForRoute(location.pathname);

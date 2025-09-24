@@ -11,6 +11,7 @@ import { faPlus, faDesktop, faExclamationCircle, faSearch, faFilter, faThLarge, 
 import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import Pagination from '../components/ui/Pagination';
+import { usePaginationPersistence } from '../hooks/usePaginationPersistence';
 
 const PeripheralCard: React.FC<{ peripheral: Peripheral; locationName: string }> = ({ peripheral, locationName }) => {
     const navigate = useNavigate();
@@ -68,7 +69,7 @@ const PeripheralsScreen: React.FC = () => {
     const [locationFilter, setLocationFilter] = useState('all');
     
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(30);
+    const [itemsPerPage, setItemsPerPage] = usePaginationPersistence(30);
 
     const locationMap = useMemo(() => {
         return new Map(hospitalLocations.map(loc => [loc.id, loc.name]));

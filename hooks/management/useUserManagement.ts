@@ -35,10 +35,11 @@ export const useUserManagement = (user: AppUser | null, uploadFile: UploadFileFu
             phone: data.phone,
             address: data.address,
             profilePhotoUrl: '',
-            roleName: 'staff',
+            roleName: data.roleName,
             hospitalId: user.hospitalId,
             hospitalSlug: user.hospitalSlug,
             status: 'invited',
+            assignedLocations: data.assignedLocations,
         });
     }, [user]);
 

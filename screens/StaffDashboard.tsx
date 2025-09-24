@@ -92,9 +92,16 @@ const StaffDashboard: React.FC = () => {
         return <div className="p-8 text-center">Loading Staff Dashboard...</div>;
     }
 
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Good morning';
+        if (hour < 18) return 'Good afternoon';
+        return 'Good evening';
+    };
+
     return (
         <div className="p-4 sm:p-6 lg:p-8 bg-slate-100 dark:bg-slate-950 min-h-full">
-            <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Welcome, {user?.name.split(' ')[0]}!</h1>
+            <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">{getGreeting()}, {user?.name.split(' ')[0]}!</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">Here's a summary of today's operations.</p>
             
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

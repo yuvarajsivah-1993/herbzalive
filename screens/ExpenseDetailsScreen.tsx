@@ -365,7 +365,7 @@ const ExpenseDetailsScreen: React.FC = () => {
                     {isEditing ? ( <>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <Input label="Subtotal*" type="number" step="0.01" value={formData.subtotal} onChange={e => setFormData({...formData, subtotal: parseFloat(e.target.value) || 0})} required />
-                            <Select label="Tax Group" value={formData.taxGroupId || ''} onChange={e => setFormData({...formData, taxGroupId: e.target.value || undefined})}> <option value="">No Tax</option> {taxGroups.map(group => <option key={group.id} value={group.id!}>{group.name} ({group.totalRate.toFixed(2)}%)</option>)} </Select>
+                            <Select label="Tax Group" value={formData.taxGroupId || ''} onChange={e => setFormData({...formData, taxGroupId: e.target.value || null})}> <option value="">No Tax</option> {taxGroups.map(group => <option key={group.id} value={group.id!}>{group.name} ({group.totalRate.toFixed(2)}%)</option>)} </Select>
                             <Input label="Discount (%)" type="number" step="0.01" value={formData.discountPercentage || ''} onChange={e => setFormData({...formData, discountPercentage: parseFloat(e.target.value) || 0})} />
                         </div>
                         <div className="mt-4 p-4 bg-slate-100 rounded-lg flex justify-between items-center"><span className="font-bold text-lg">New Total</span><span className="font-bold text-2xl text-blue-600">{formatCurrency(newTotalAmount, currency)}</span></div>

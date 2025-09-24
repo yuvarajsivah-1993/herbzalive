@@ -15,6 +15,7 @@ import Pagination from '../components/ui/Pagination';
 import { SearchableOption, SearchableSelect } from './ReservationsScreen';
 import DateRangePicker from '../components/ui/DateRangePicker';
 import { db } from '../services/firebase';
+import { usePaginationSettings } from '../hooks/usePaginationSettings';
 
 const currencySymbols: { [key: string]: string } = { USD: '$', EUR: '€', GBP: '£', INR: '₹' };
 
@@ -348,7 +349,7 @@ const POSSalesScreen: React.FC = () => {
     const [paymentMethodFilter, setPaymentMethodFilter] = useState<'all' | POSPaymentMethod>('all');
     const [createdByFilter, setCreatedByFilter] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(25);
+    const [itemsPerPage, setItemsPerPage] = usePaginationSettings();
 
     const currency = user?.hospitalCurrency || 'USD';
 

@@ -6,7 +6,7 @@ import { Treatment, TreatmentUpdateData, TaxGroup } from '../types';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faStethoscope, faCreditCard, faClock } from '@fortawesome/free-solid-svg-icons';
+import { faStethoscope, faCreditCard, faClock, faChevronLeft } from '@fortawesome/free-solid-svg-icons';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
 import { useToast } from '../hooks/useToast';
 import FileInput from '../components/ui/FileInput';
@@ -163,6 +163,11 @@ const TreatmentDetailsScreen: React.FC = () => {
                 confirmButtonVariant="danger"
                 loading={actionLoading === 'delete'}
             />
+            <div className="mb-6">
+                <Button variant="light" onClick={() => navigate(-1)}>
+                    <FontAwesomeIcon icon={faChevronLeft} className="mr-2" /> Back
+                </Button>
+            </div>
             <div className="space-y-8">
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm p-6 flex flex-col items-center text-center">
                     {(newPhotoFile && URL.createObjectURL(newPhotoFile)) || (!isPhotoRemoved && treatment.photoUrl) ? (
