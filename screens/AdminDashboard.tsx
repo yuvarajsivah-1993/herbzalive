@@ -372,7 +372,7 @@ const AdminDashboard: React.FC = () => {
         const createListener = (collectionName: string, setter: React.Dispatch<any>, dateField: string) => {
             let query: firebase.firestore.Query = db.collection(collectionName).where('hospitalId', '==', user.hospitalId);
 
-            if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+            if (user.currentLocation) {
                 query = query.where("locationId", "==", user.currentLocation.id);
             }
 

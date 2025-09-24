@@ -3,6 +3,7 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 import 'firebase/compat/storage';
+import 'firebase/compat/functions'; // Import Firebase Functions
 import { AppUser, Timestamp } from '../types';
 
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -24,6 +25,7 @@ if (!firebase.apps.length) {
 export const auth = firebase.auth();
 export const storage = firebase.storage();
 export const db = firebase.firestore();
+export const functions = firebase.functions(); // Export Firebase Functions
 
 // FIX: Use v8 syntax for Firestore settings and persistence
 db.settings({

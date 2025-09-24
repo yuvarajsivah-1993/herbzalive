@@ -38,7 +38,7 @@ const LocationSwitcher: React.FC = () => {
 
     const locationsToShow = useMemo(() => {
         if (!user || !hospitalLocations) return [];
-        if (user.roleName === 'owner' || user.roleName === 'admin') {
+        if (user.roleName === 'owner') {
             return hospitalLocations;
         }
         return hospitalLocations.filter(loc => user.assignedLocations?.includes(loc.id));
