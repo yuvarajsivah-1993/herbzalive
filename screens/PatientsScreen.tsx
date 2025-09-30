@@ -245,8 +245,8 @@ const PatientCard: React.FC<{ patient: PatientDocument; nextVisitDate?: Date }> 
             <h3 className="font-bold text-lg mt-3 text-slate-800 dark:text-slate-100 truncate w-full">{patient.name}</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">{patient.patientId}</p>
              {nextVisitDate && (
-                <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold mt-2 truncate" title={`Next Visit: ${nextVisitDate.toLocaleDateString()}`}>
-                    Next Visit: {nextVisitDate.toLocaleDateString()}
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold mt-2 truncate" title={`Next Visit: ${formatDate(nextVisitDate)}`}>
+                    Next Visit: {formatDate(nextVisitDate)}
                 </p>
             )}
             <div className="mt-auto pt-2">
@@ -263,10 +263,13 @@ const PatientCard: React.FC<{ patient: PatientDocument; nextVisitDate?: Date }> 
 };
 
 
+import { useFormatting } from '@/utils/formatting';
+
 const PatientsScreen: React.FC = () => {
   const { user, patients, consultations, deletePatient, updatePatientStatus, loading, currentLocation } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
+  const { formatDate } = useFormatting();
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; confirmButtonText: string; confirmButtonVariant: 'danger' | 'primary' } | null>(null);
   
   // UI State
@@ -463,8 +466,8 @@ const PatientsScreen: React.FC = () => {
                         <div className="ml-4"><div className="text-sm font-medium text-slate-900 dark:text-slate-100">{patient.name}</div><div className="text-sm text-slate-500">{patient.patientId}</div></div>
                     </div></td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{patient.phone}{patient.email && <div className="text-xs">{patient.email}</div>}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{patient.registeredAt.toDate().toLocaleDateString()}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-medium text-blue-600">{nextVisitMap.get(patient.id)?.toLocaleDateString() || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{formatDate(patient.registeredAt.toDate())}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-medium text-blue-600">{nextVisitMap.get(patient.id) ? formatDate(nextVisitMap.get(patient.id)!) : 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm"><span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${patient.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300'}`}>{patient.status}</span></td>
                     {canWrite && <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={e => e.stopPropagation()}><ActionsDropdown onView={() => handleRowClick(patient.id)} onDelete={() => handleDeleteRequest(patient)} onToggleStatus={() => handleToggleStatusRequest(patient)} isInactive={patient.status === 'inactive'} /></td>}
                   </tr>

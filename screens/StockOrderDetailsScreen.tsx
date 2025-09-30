@@ -13,7 +13,7 @@ import { useToast } from '../hooks/useToast';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDolly, faCalendar, faHashtag, faTruck, faCheck, faTimes, faChevronLeft, faTrashAlt, faPaperclip, faExternalLinkAlt, faPaperPlane, faPencilAlt, faUndo, faMoneyBillWave, faEllipsisV, faPlus, faMinus, faChevronDown } from '@fortawesome/free-solid-svg-icons';
-import { sendEmail } from '../services/emailService';
+
 import Avatar from '../components/ui/Avatar';
 import Textarea from '../components/ui/Textarea';
 // FIX: Import the 'Select' component to resolve the 'Cannot find name' error.
@@ -696,37 +696,7 @@ const StockOrderDetailsScreen: React.FC = () => {
         }
     };
 
-    const handleSendEmail = async () => {
-        if (!order || !vendorDetails) {
-            addToast("Vendor details not found. Cannot send email.", "error");
-            return;
-        }
-        setActionLoading('email');
-        try {
-            const toEmails = [vendorDetails.email, ...vendorDetails.contactPersons.map(p => p.email).filter((e): e is string => !!e)];
-            const subject = `Purchase Order #${order.orderId} from ${user?.hospitalName}`;
-            const body = `
-                <p>Dear ${vendorDetails.name},</p>
-                <p>Please find attached our purchase order #${order.orderId}.</p>
-                <h3>Order Summary</h3>
-                <p><strong>Order Date:</strong> {{orderDate}}</p>
-                <p><strong>Payment Terms:</strong> {{paymentTerms}}</p>
-                <p><strong>Total Value:</strong> {{orderTotal}}</p>
-                <h3>Items Requested:</h3>
-                {{itemsTable}}
-                <p>Please confirm receipt of this order.</p>
-                <p>Thank you,</p>
-                <p>${user?.hospitalName}</p>
-            `;
-            
-            await sendEmail(toEmails.join(','), subject, body, { user: user!, stockOrder: order });
-            addToast(`Email sent to ${toEmails.join(', ')}`, 'success');
-        } catch (error) {
-            addToast("Failed to send email.", "error");
-        } finally {
-            setActionLoading(null);
-        }
-    };
+
     
     const toggleExpandItem = (itemId: string) => {
         setExpandedItems(prev => {
@@ -828,7 +798,7 @@ const StockOrderDetailsScreen: React.FC = () => {
                         {isCancellable && <Button variant="light" onClick={() => setCancelModalOpen(true)} disabled={!!actionLoading}>Cancel Order</Button>}
                         {order.paymentStatus !== 'Paid' && <Button variant="success" onClick={() => { setPaymentToEdit(null); setIsPaymentModalOpen(true); }} disabled={!!actionLoading}><FontAwesomeIcon icon={faMoneyBillWave} className="mr-2"/>Add Payment</Button>}
                         {isReceivable && <Button variant="primary" onClick={() => setReceiveModalOpen(true)} disabled={!!actionLoading}>Receive Stock</Button>}
-                        <Button variant="light" onClick={handleSendEmail} disabled={!!actionLoading}><FontAwesomeIcon icon={faPaperPlane} className="mr-2" /> {actionLoading === 'email' ? 'Sending...' : 'Send Email'}</Button>
+
                     </div>
                 </div>) : undefined}
             >

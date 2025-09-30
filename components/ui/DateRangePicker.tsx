@@ -105,23 +105,26 @@ const CalendarMonth: React.FC<{
 };
 
 interface DateRangePickerProps {
-    value: { start: Date, end: Date };
-    onChange: (range: { start: Date, end: Date }) => void;
+    date: { from: Date, to: Date } | undefined;
+    setDate: (range: { from: Date, to: Date } | undefined) => void;
 }
 
-const DateRangePicker: React.FC<DateRangePickerProps> = ({ value, onChange }) => {
+import { useFormatting } from '@/utils/formatting';
+
+const DateRangePicker: React.FC<DateRangePickerProps> = ({ date, setDate }) => {
+    const { formatDate } = useFormatting();
     const [isOpen, setIsOpen] = useState(false);
-    const [tempRange, setTempRange] = useState<{ start: Date | null, end: Date | null }>(value);
-    const [viewDate, setViewDate] = useState(value.end || new Date());
+    const [tempRange, setTempRange] = useState<{ from: Date | null, to: Date | null } | undefined>(date);
+    const [viewDate, setViewDate] = useState(date?.to || new Date());
     const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (isOpen) {
-            setTempRange(value);
-            setViewDate(value.end || new Date());
+            setTempRange(date);
+            setViewDate(date?.to || new Date());
         }
-    }, [value, isOpen]);
+    }, [date, isOpen]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -134,39 +137,39 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({ value, onChange }) =>
     }, []);
 
     const handleDateClick = (clickedDate: Date) => {
-        if (!tempRange.start || tempRange.end) {
-            setTempRange({ start: clickedDate, end: null });
+        if (!tempRange?.from || tempRange.to) {
+            setTempRange({ from: clickedDate, to: null });
         } else {
-            if (clickedDate < tempRange.start) {
-                setTempRange({ start: clickedDate, end: tempRange.start });
+            if (clickedDate < tempRange.from) {
+                setTempRange({ from: clickedDate, to: tempRange.from });
             } else {
-                setTempRange({ start: tempRange.start, end: clickedDate });
+                setTempRange({ from: tempRange.from, to: clickedDate });
             }
         }
     };
     
     const handlePresetClick = (preset: typeof presets[0]) => {
         const { start, end } = preset.getRange();
-        setTempRange({ start, end });
+        setTempRange({ from: start, to: end });
         setViewDate(end);
     };
 
     const handleApply = () => {
-        if (tempRange.start && tempRange.end) {
-            onChange(tempRange as { start: Date, end: Date });
-        } else if(tempRange.start) { // Single day selected
-            onChange({ start: tempRange.start, end: tempRange.start });
+        if (tempRange?.from && tempRange.to) {
+            setDate(tempRange as { from: Date, to: Date });
+        } else if(tempRange?.from) { // Single day selected
+            setDate({ from: tempRange.from, to: tempRange.from });
         }
         setIsOpen(false);
     };
 
-    const formatDate = (date: Date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
 
     return (
         <div className="relative" ref={containerRef}>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date Range</label>
             <button type="button" onClick={() => setIsOpen(!isOpen)} className="w-full flex items-center justify-between rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                <span>{`${formatDate(value.start)} → ${formatDate(value.end)}`}</span>
+                <span>{date ? `${formatDate(date.from)} → ${formatDate(date.to)}` : 'Select Date Range'}</span>
                 <FontAwesomeIcon icon={faCalendarDays} className="text-slate-400" />
             </button>
 
@@ -174,9 +177,9 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({ value, onChange }) =>
                 <div className="absolute top-full mt-2 z-30 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-2xl flex flex-col sm:flex-row">
                     <div className="flex p-2 border-b sm:border-b-0 sm:border-r border-slate-200 dark:border-slate-800">
                         <button onClick={() => setViewDate(addMonths(viewDate, -1))} className="p-2 self-start mt-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><FontAwesomeIcon icon={faChevronLeft}/></button>
-                        <CalendarMonth viewDate={addMonths(viewDate, -1)} range={tempRange} onDateClick={handleDateClick} hoveredDate={hoveredDate} onDateHover={setHoveredDate} />
+                        <CalendarMonth viewDate={addMonths(viewDate, -1)} range={{start: tempRange?.from || null, end: tempRange?.to || null}} onDateClick={handleDateClick} hoveredDate={hoveredDate} onDateHover={setHoveredDate} />
                         <div className="border-r border-slate-200 dark:border-slate-800 mx-1"></div>
-                        <CalendarMonth viewDate={viewDate} range={tempRange} onDateClick={handleDateClick} hoveredDate={hoveredDate} onDateHover={setHoveredDate} />
+                        <CalendarMonth viewDate={viewDate} range={{start: tempRange?.from || null, end: tempRange?.to || null}} onDateClick={handleDateClick} hoveredDate={hoveredDate} onDateHover={setHoveredDate} />
                         <button onClick={() => setViewDate(addMonths(viewDate, 1))} className="p-2 self-start mt-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><FontAwesomeIcon icon={faChevronRight}/></button>
                     </div>
                     <div className="p-4 flex flex-col w-full sm:w-48">

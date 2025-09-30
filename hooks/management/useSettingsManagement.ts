@@ -21,7 +21,7 @@ export const useSettingsManagement = (user: AppUser | null, setUser: React.Dispa
                 try {
                     await storage.refFromURL(oldLogoUrl).delete();
                 } catch (e) {
-                    console.warn("Failed to delete old hospital logo:", e);
+                    // console.warn("Failed to delete old hospital logo:", e);
                 }
             }
             const logoName = `${Date.now()}-${logo.name}`;
@@ -106,7 +106,7 @@ export const useSettingsManagement = (user: AppUser | null, setUser: React.Dispa
         });
     }, [user, setUser]);
 
-    const updateEmailSettings = useCallback(async (settings: EmailSettings) => {
+    const updateEmailSettings = useCallback(async (settings: Omit<EmailSettings, 'provider'>) => {
         if (!user || !user.hospitalId) throw new Error("User not authenticated");
         const hospitalDocRef = db.collection('hospitals').doc(user.hospitalId);
 

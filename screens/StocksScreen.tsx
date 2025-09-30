@@ -331,15 +331,16 @@ export const AddProductModal: React.FC<{
                         }
 
                         let batchDetails: InitialBatchDetails | undefined = undefined;
-                        if (quantity > 0 && hasPricing) {
+                        if (costPrice > 0 || salePrice > 0 || quantity > 0) {
                             batchDetails = {
-                                quantity,
+                                quantity: quantity,
                                 costPrice,
                                 salePrice,
                                 batchNumber: locSpecificData.batchNumber.trim(),
                                 expiryDate: locSpecificData.expiryDate || undefined,
                             };
                         }
+                        console.log("AddProductModal - batchDetails:", batchDetails);
                         
                         initialLocationStock[locId] = {
                             lowStockThreshold: Number(locSpecificData.lowStockThreshold) || 10,

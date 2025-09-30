@@ -4,7 +4,7 @@ import { db, storage, createAuditLog } from '../../services/firebase';
 import firebase from 'firebase/compat/app';
 // FIX: Added Timestamp to imports
 import { AppUser, NewPatientData, PatientDocument, PatientUpdateData, PatientNote, PatientDocumentFile, NewAppointmentData, Appointment, Consultation, ConsultationUpdateData, Timestamp } from '../../types';
-import { sendEmail } from '../../services/emailService';
+
 
 const { serverTimestamp, increment } = firebase.firestore.FieldValue;
 type UploadFileFunction = (file: File | Blob, path: string) => Promise<string>;
@@ -56,44 +56,75 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
             });
             await createAuditLog(user, 'CREATE', 'PATIENT', newPatientRef.id, `Created patient: ${data.name} (${patientIdDisplay!})`);
         } catch (e) {
-            console.error("Failed to add patient in transaction", e);
             throw new Error("Could not create new patient. Please try again.");
         }
         
-        // Send welcome email after successful patient creation
-        if (user.hospitalNotificationSettings?.welcomeMessage?.enabled && data.email) {
-            const { template } = user.hospitalNotificationSettings.welcomeMessage;
-            
-            const patientForEmail = {
-                name: data.name,
-                email: data.email,
-            };
 
-            try {
-                await sendEmail(
-                    data.email,
-                    template.subject,
-                    template.body,
-                    { user, patient: patientForEmail }
-                );
-            } catch (emailError) {
-                console.error("Failed to send welcome email after patient creation:", emailError);
-                // Non-critical error, don't throw to user.
-            }
-        }
 
     }, [user, uploadFile]);
 
-    const getPatients = useCallback(async (): Promise<PatientDocument[]> => {
-        if (!user) return [];
-        let q: firebase.firestore.Query = db.collection("patients").where("hospitalId", "==", user.hospitalId);
+    const getPatients = useCallback(async (
+        limit: number,
+        lastVisible: firebase.firestore.QueryDocumentSnapshot | null,
+        orderByField: string = 'registeredAt', // Default order by registration date
+        direction: 'asc' | 'desc' = 'desc', // Default to descending order
+        searchTerm: string = '',
+        statusFilter: 'all' | 'active' | 'inactive' = 'all',
+        dateRangeStart: string = '',
+        dateRangeEnd: string = ''
+    ): Promise<{ patients: PatientDocument[], lastVisible: firebase.firestore.QueryDocumentSnapshot | null, hasMore: boolean }> => {
+        if (!user) return { patients: [], lastVisible: null, hasMore: false };
+
+        let q: firebase.firestore.Query = db.collection("patients")
+            .where("hospitalId", "==", user.hospitalId);
 
         if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
             q = q.where("locationId", "==", user.currentLocation.id);
         }
+
+        if (statusFilter !== 'all') {
+            q = q.where("status", "==", statusFilter);
+        }
+
+        // Date range filtering for 'registeredAt'
+        if (dateRangeStart) {
+            const start = new Date(dateRangeStart);
+            start.setHours(0, 0, 0, 0);
+            q = q.where("registeredAt", ">=", firebase.firestore.Timestamp.fromDate(start));
+        }
+        if (dateRangeEnd) {
+            const end = new Date(dateRangeEnd);
+            end.setHours(23, 59, 59, 999);
+            q = q.where("registeredAt", "<=", firebase.firestore.Timestamp.fromDate(end));
+        }
+
+        // Basic search for name or patientId (prefix matching)
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            // Firestore doesn't support OR queries directly for different fields
+            // This would require multiple queries or an external search solution for robust search
+            // For now, we'll do a basic prefix search on 'name'
+            q = q.where("name", ">=", term)
+                 .where("name", "<=", term + '\uf8ff');
+            // Note: For patientId or phone, separate queries would be needed, or client-side filtering of results
+            // For a simple example, we'll focus on name.
+        }
+
+        q = q.orderBy(orderByField, direction)
+             .limit(limit + 1); // Fetch one more to check if there's a next page
+
+        if (lastVisible) {
+            q = q.startAfter(lastVisible);
+        }
         
         const querySnapshot = await q.get();
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PatientDocument));
+        const patients = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PatientDocument));
+
+        const hasMore = patients.length > limit;
+        const patientsToReturn = hasMore ? patients.slice(0, limit) : patients;
+        const newLastVisible = hasMore ? querySnapshot.docs[limit - 1] : null;
+
+        return { patients: patientsToReturn, lastVisible: newLastVisible, hasMore };
     }, [user]);
 
     const getPatientById = useCallback(async (patientId: string): Promise<PatientDocument | null> => {
@@ -106,7 +137,6 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
             }
             return null;
         } catch (error) {
-            console.error(`Permission denied or error fetching patient ${patientId}:`, error);
             return null;
         }
     }, [user]);
@@ -125,7 +155,7 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
                 try {
                     await storage.refFromURL(oldPhotoUrl).delete();
                 } catch (e) {
-                    console.warn("Failed to delete old patient photo", e);
+                    // console.warn("Failed to delete old patient photo", e);
                 }
             }
             updateData.profilePhotoUrl = '';
@@ -136,7 +166,7 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
                 try {
                     await storage.refFromURL(oldPhotoUrl).delete();
                 } catch (e) {
-                    console.warn("Failed to delete old patient photo", e);
+                    // console.warn("Failed to delete old patient photo", e);
                 }
             }
 
@@ -224,7 +254,7 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
             });
             await createAuditLog(user, 'CREATE', 'PATIENT_DOCUMENT', patientId, `Uploaded document "${file.name}" for patient ${patientName}.`);
         } catch (error) {
-            await storage.refFromURL(downloadURL).delete().catch(e => console.error("Orphaned file cleanup failed:", e));
+            await storage.refFromURL(downloadURL).delete().catch(() => {}); // Replace console.error with empty catch
             throw error;
         }
     }, [user, uploadFile]);
@@ -232,7 +262,7 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
     const deletePatientDocument = useCallback(async (patientId: string, documentFile: PatientDocumentFile) => {
         if (!user) throw new Error("User not authenticated");
         const patientDocRef = db.collection('patients').doc(patientId);
-        await storage.refFromURL(documentFile.url).delete().catch(e => console.error("File delete failed:", e));
+        await storage.refFromURL(documentFile.url).delete().catch(() => {}); // Replace console.error with empty catch
         
         let patientName = 'Unknown Patient';
         await db.runTransaction(async (t) => {
@@ -256,13 +286,21 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
         const [patientDoc, doctorDoc] = await Promise.all([db.collection("patients").doc(data.patientId).get(), db.collection("doctors").doc(data.doctorId).get()]);
         if (!patientDoc.exists || !doctorDoc.exists) throw new Error("Patient or Doctor not found");
 
-        const docRef = await db.collection("appointments").add({
-            ...data, patientName: patientDoc.data()!.name, doctorName: doctorDoc.data()!.name,
-            start: firebase.firestore.Timestamp.fromDate(data.start), end: firebase.firestore.Timestamp.fromDate(data.end),
+        const newAppointmentRef = db.collection("appointments").doc();
+
+        const appointmentData: any = {
+            ...data,
+            patientName: patientDoc.data()!.name,
+            doctorName: doctorDoc.data()!.name,
+            start: firebase.firestore.Timestamp.fromDate(data.start),
+            end: firebase.firestore.Timestamp.fromDate(data.end),
             hospitalId: user.hospitalId,
             locationId: user.currentLocation.id,
-        });
-        await createAuditLog(user, 'CREATE', 'APPOINTMENT', docRef.id, `Scheduled appointment for ${patientDoc.data()!.name} with Dr. ${doctorDoc.data()!.name}.`);
+            meetingStarted: false, // Default to false
+        };
+
+        await newAppointmentRef.set(appointmentData);
+        await createAuditLog(user, 'CREATE', 'APPOINTMENT', newAppointmentRef.id, `Scheduled ${data.consultationType} appointment for ${patientDoc.data()!.name} with Dr. ${doctorDoc.data()!.name}.`);
     }, [user]);
 
     const getAppointments = useCallback(async (startDate: Date, endDate: Date): Promise<Appointment[]> => {
@@ -287,7 +325,7 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
             const snapshot = await q.get();
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Appointment));
             return data.sort((a, b) => b.start.seconds - a.start.seconds);
-        } catch (error) { console.error("Failed to fetch patient appointments:", error); return []; }
+        } catch (error) { return []; }
     }, [user]);
 
     const updateAppointment = useCallback(async (appointmentId: string, data: Partial<NewAppointmentData>) => {
@@ -327,7 +365,7 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
             const snapshot = await q.get();
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Consultation));
             return data.sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
-        } catch (error) { console.error("Failed to fetch patient consultations:", error); return []; }
+        } catch (error) { return []; }
     }, [user]);
 
     const saveConsultation = useCallback(async (appointment: Appointment, data: ConsultationUpdateData) => {
@@ -362,15 +400,20 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
             }
             return null;
         } catch (error) {
-            console.error(`Error fetching appointment ${appointmentId}:`, error);
             return null;
         }
+    }, [user]);
+
+    const updateAppointmentMeetingStatus = useCallback(async (appointmentId: string, meetingStarted: boolean) => {
+        if (!user) throw new Error("User not authenticated.");
+        await db.collection('appointments').doc(appointmentId).update({ meetingStarted });
+        await createAuditLog(user, 'UPDATE', 'APPOINTMENT', appointmentId, `Meeting status updated to ${meetingStarted} for appointment ${appointmentId}.`);
     }, [user]);
 
     return {
         addPatient, getPatients, getPatientById, updatePatient, deletePatient, updatePatientStatus,
         addPatientNote, deletePatientNote, uploadPatientDocument, deletePatientDocument,
-        addAppointment, getAppointments, getAppointmentsForPatient, updateAppointment, deleteAppointment, getAppointmentById,
+        addAppointment, getAppointments, getAppointmentsForPatient, updateAppointment, deleteAppointment, getAppointmentById, updateAppointmentMeetingStatus,
         getConsultationForAppointment, getConsultationsForPatient, saveConsultation,
     };
 };

@@ -202,13 +202,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             createListener('stocks', setStockItems),
             db.collection('stockOrders').where('hospitalId', '==', user.hospitalId)
                 .onSnapshot(snapshot => {
-                    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as StockOrder }));
+                    let data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as StockOrder }));
+                    if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+                        data = data.filter(order => order.locationId === user.currentLocation?.id);
+                    }
                     data.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
                     setStockOrders(data);
                 }, err => console.error(`Error listening to stockOrders:`, err)),
             db.collection('stockReturns').where('hospitalId', '==', user.hospitalId)
                 .onSnapshot(snapshot => {
-                    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as StockReturn }));
+                    let data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as StockReturn }));
+                    if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
+                        data = data.filter(ret => ret.locationId === user.currentLocation?.id);
+                    }
                     data.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
                     setStockReturns(data);
                 }, err => console.error(`Error listening to stockReturns:`, err)),
@@ -508,6 +514,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 hospitalEmployeeDesignations: hospitalData.employeeDesignations || [],
                 hospitalEmployeeShifts: hospitalData.employeeShifts || [],
                 assignedLocations: userDocData.assignedLocations || [], // Ensure it's always an array
+                currentLocation: null, // Explicitly set to null initially
             };
             setUser(appUser);
 
@@ -584,64 +591,61 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const collectionName = user.roleName === 'patient' ? 'patients' : 'users';
       const unsubscribe = db.collection(collectionName).doc(user.id).onSnapshot(
         (doc) => {
-          if (doc.exists) {
-            console.log("AuthContext - Raw doc.data():", doc.data());
-            console.log("AuthContext - doc.data()?.assignedLocations:", doc.data()?.assignedLocations);
-            
-            if (user.roleName === 'patient') {
-                const updatedPatientDoc = { id: doc.id, ...doc.data() } as PatientDocument;
-                setUser(prevUser => {
-                    if (!prevUser) return null;
-                    const patientAddress: Address = { street: updatedPatientDoc.address, city: '', country: '', pincode: '' };
-                    return {
-                        ...prevUser,
-                        name: updatedPatientDoc.name,
-                        phone: updatedPatientDoc.phone,
-                        address: patientAddress,
-                        profilePhotoUrl: updatedPatientDoc.profilePhotoUrl,
-                        documents: updatedPatientDoc.documents,
-                        notes: updatedPatientDoc.notes,
-                    };
-                });
-                return;
-            }
-
-            const updatedUserDoc = { id: doc.id, ...doc.data() } as UserDocument;
-            
-            if (updatedUserDoc.status === 'inactive') {
-              console.log("User has been made inactive. Logging out.");
-              auth.signOut();
-              return;
-            }
-
-            setUser(prevUser => {
-              if (!prevUser) return null;
-
-              const newPermissions = prevUser.hospitalRolePermissions
-                ? prevUser.hospitalRolePermissions[updatedUserDoc.roleName as EditableRole] || permissionsByRole[updatedUserDoc.roleName]
-                : permissionsByRole[updatedUserDoc.roleName];
-
-              const newUser = {
-                ...prevUser,
-                ...updatedUserDoc,
-                permissions: newPermissions,
-              };
-              return newUser;
-            });
-          } else {
-            console.warn("Current user's document was deleted. Logging out.");
-            auth.signOut();
-          }
-        },
-        (error) => {
-          console.error("Error listening to user document:", error);
-        }
-      );
-
-      return () => unsubscribe();
-    }
-  }, [user?.id, user?.isSuperAdmin, user?.roleName]);
-
+                      if (doc.exists) {
+                      
+                      if (user.roleName === 'patient') {
+                          const updatedPatientDoc = { id: doc.id, ...doc.data() } as PatientDocument;
+                          setUser(prevUser => {
+                              if (!prevUser) return null;
+                              const patientAddress: Address = { street: updatedPatientDoc.address, city: '', country: '', pincode: '' };
+                              return {
+                                  ...prevUser,
+                                  name: updatedPatientDoc.name,
+                                  phone: updatedPatientDoc.phone,
+                                  address: patientAddress,
+                                  profilePhotoUrl: updatedPatientDoc.profilePhotoUrl,
+                                  documents: updatedPatientDoc.documents,
+                                  notes: updatedPatientDoc.notes,
+                              };
+                          });
+                          return;
+                      }
+          
+                      const updatedUserDoc = { id: doc.id, ...doc.data() } as UserDocument;
+                      
+                      if (updatedUserDoc.status === 'inactive') {
+                        console.log("User has been made inactive. Logging out.");
+                        auth.signOut();
+                        return;
+                      }
+          
+                      setUser(prevUser => {
+                        if (!prevUser) return null;
+          
+                        const newPermissions = prevUser.hospitalRolePermissions
+                          ? prevUser.hospitalRolePermissions[updatedUserDoc.roleName as EditableRole] || permissionsByRole[updatedUserDoc.roleName]
+                          : permissionsByRole[updatedUserDoc.roleName];
+          
+                        const newUser = {
+                          ...prevUser,
+                          ...updatedUserDoc,
+                          permissions: newPermissions,
+                        };
+                        return newUser;
+                      });
+                    } else {
+                      console.warn("Current user's document was deleted. Logging out.");
+                      auth.signOut();
+                    }
+                  },
+                  (error) => {
+                    console.error("Error listening to user document:", error);
+                  }
+                );
+          
+                return () => unsubscribe();
+              }
+            }, [user?.id, user?.isSuperAdmin, user?.roleName]);
   // Real-time listener for the hospital document to sync status, subscription, etc.
   useEffect(() => {
     if (user && user.hospitalId && !user.isSuperAdmin) {

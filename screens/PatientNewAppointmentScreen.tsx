@@ -1,28 +1,26 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useAuth } from '../../hooks/useAuth';
-import { useToast } from '../../hooks/useToast';
-import {
-    DoctorDocument,
-    Treatment,
-    NewAppointmentData,
-    DayOfWeek
-} from '../../types';
-import Button from '../../components/ui/Button';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/useToast';
+import { DoctorDocument, Treatment, NewAppointmentData, DayOfWeek } from '@/types';
+import Button from '@/components/ui/Button';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faSpinner, faChevronLeft, faChevronRight, faCalendar, faClock,
     faUserMd, faStethoscope, faArrowRight
 } from '@fortawesome/free-solid-svg-icons';
-import Card from '../../components/ui/Card';
-import Avatar from '../../components/ui/Avatar';
+import Card from '@/components/ui/Card';
+import Avatar from '@/components/ui/Avatar';
 
 const DAY_NAMES: DayOfWeek[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+import { useFormatting } from '@/utils/formatting';
 
 const PatientNewAppointmentScreen: React.FC = () => {
     const { 
         user, doctors, treatments, getAppointments, addAppointment, taxGroups 
     } = useAuth();
     const { addToast } = useToast();
+    const { formatDate, formatTime, formatCurrency } = useFormatting();
 
     const [step, setStep] = useState(1);
     const [selectedTreatmentId, setSelectedTreatmentId] = useState<string | null>(null);
@@ -35,21 +33,7 @@ const PatientNewAppointmentScreen: React.FC = () => {
     const [loadingSlots, setLoadingSlots] = useState(false);
     const [availableSlots, setAvailableSlots] = useState<string[]>([]);
     
-    const currencySymbol = useMemo(() => {
-        const symbols: { [key: string]: string } = {
-            USD: '$', EUR: '€', GBP: '£', INR: '₹'
-        };
-        const code = user?.hospitalCurrency || 'INR';
-        return symbols[code] || code;
-    }, [user?.hospitalCurrency]);
 
-    const formatLocalCurrency = (amount: number) => {
-        if (isNaN(amount)) amount = 0;
-        return `${currencySymbol}${amount.toLocaleString(
-            'en-IN',
-            { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-        )}`;
-    };
     
     const taxGroupMap = useMemo(() => {
         return new Map(taxGroups.map(group => [group.id, group]));
@@ -203,11 +187,7 @@ const PatientNewAppointmentScreen: React.FC = () => {
                     currentSlot.setMinutes(currentSlot.getMinutes() + doctor.slotInterval);
                 }
                 
-                setAvailableSlots(possibleSlots.map(slot =>
-                    slot.toLocaleTimeString('en-US', {
-                        hour: '2-digit', minute: '2-digit', hour12: true
-                    })
-                ));
+                setAvailableSlots(possibleSlots.map(slot => formatTime(slot)));
 
             } catch (error) {
                 console.error("Error calculating slots:", error);
@@ -423,7 +403,7 @@ const PatientNewAppointmentScreen: React.FC = () => {
                                         </div>
                                         <div className="text-right ml-4 flex-shrink-0">
                                             <p className="font-bold text-slate-800 dark:text-slate-200">
-                                                {formatLocalCurrency(calculateTotalCost(treatment))}
+                                                {formatCurrency(calculateTotalCost(treatment))}
                                             </p>
                                             <p className="text-sm text-slate-500">
                                                 {treatment.duration} min
@@ -522,7 +502,7 @@ const PatientNewAppointmentScreen: React.FC = () => {
                             <div className="p-4 bg-slate-100 dark:bg-slate-800/50 flex items-center justify-between">
                                 <div>
                                     <p className="font-bold text-lg">Your Appointment</p>
-                                    <p>{selectedTreatment?.name} on {selectedDate.toLocaleDateString()} at {selectedTime}</p>
+                                    <p>{selectedTreatment?.name} on {formatDate(selectedDate)} at {selectedTime}</p>
                                 </div>
                                 <Button onClick={handleSubmit} disabled={loading}>
                                     {loading ? 'Booking...' : 'Confirm & Book'}

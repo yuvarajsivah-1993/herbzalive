@@ -21,7 +21,7 @@ import TreatmentsScreen from './screens/TreatmentsScreen';
 import StaffScreen from './screens/StaffScreen';
 import AccountsScreen from './screens/AccountsScreen';
 import SalesScreen from './screens/SalesScreen';
-import ExpensesScreen from './screens/PurchasesScreen';
+import ExpensesScreen from './screens/ExpensesScreen.tsx';
 import PayrollScreen from './screens/PayrollScreen';
 import StocksScreen from './screens/StocksScreen';
 import VendorsScreen from './screens/VendorsScreen';
@@ -58,13 +58,14 @@ import EmployeeDetailsScreen from './screens/payroll/EmployeeDetailsScreen';
 import LoanDetailsScreen from './screens/payroll/LoanDetailsScreen';
 
 
+
 // Import Modals for centralized handling
 // FIX: The AddPatientModal is already handled in ProtectedLayout. This import is not needed.
 import { AddDoctorModal } from './screens/DoctorsScreen';
 import { AddTreatmentModal } from './screens/TreatmentsScreen';
 import { AddProductModal } from './screens/StocksScreen';
 import { AddVendorModal } from './screens/VendorsScreen';
-import { NewAppointmentData, PatientDocument, DoctorDocument, Treatment, NewPatientData, NewDoctorData, NewTreatmentData, DayOfWeek, SubscriptionPackage, NewStockItemData, NewVendorData, A4Design, ThermalDesign, Invoice, POSSale } from './types';
+import { NewAppointmentData, PatientDocument, DoctorDocument, Treatment, NewPatientData, NewDoctorData, NewTreatmentData, DayOfWeek, SubscriptionPackage, NewStockItemData, NewVendorData, A4Design, ThermalDesign, Invoice, POSSale, ConsultationType } from './types';
 import { SearchableOption, SearchableSelect } from './screens/ReservationsScreen';
 import { useToast } from './hooks/useToast';
 import Button from './components/ui/Button';
@@ -106,6 +107,7 @@ const AddReservationModal: React.FC<AddReservationModalProps> = ({ isOpen, onClo
     const [treatmentId, setTreatmentId] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [time, setTime] = useState('');
+    const [consultationType, setConsultationType] = useState<ConsultationType>('direct');
 
     // State for available time slots
     const [availableSlots, setAvailableSlots] = useState<string[]>([]);
@@ -114,6 +116,7 @@ const AddReservationModal: React.FC<AddReservationModalProps> = ({ isOpen, onClo
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const { addToast } = useToast();
+    const { formatTime } = useFormatting();
     const modalRef = useRef<HTMLDivElement>(null);
     
     const activePatients = useMemo(() => {
@@ -187,7 +190,7 @@ const AddReservationModal: React.FC<AddReservationModalProps> = ({ isOpen, onClo
                         return (appStart < slotEnd) && (appEnd > slot);
                     });
                 });
-                setAvailableSlots(available.map(slot => slot.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })));
+                setAvailableSlots(available.map(slot => formatTime(slot)));
             } catch (err) {
                 console.error("Failed to calculate slots:", err);
                 addToast("Could not calculate available time slots.", "error");
@@ -226,6 +229,7 @@ const AddReservationModal: React.FC<AddReservationModalProps> = ({ isOpen, onClo
     const resetForm = () => {
         setPatientId(''); setDoctorId(''); setTreatmentId(''); 
         setDate(new Date().toISOString().split('T')[0]); setTime('');
+        setConsultationType('direct');
         setError('');
     };
     
@@ -283,7 +287,8 @@ const AddReservationModal: React.FC<AddReservationModalProps> = ({ isOpen, onClo
             await onSave({
                 patientId, doctorId, start, end, 
                 treatmentName: selectedTreatment.name,
-                status: 'Registered'
+                status: 'Registered',
+                consultationType
             });
         } catch (err: any) {
             // Error is handled by the calling component (handleGenericSave), which shows a toast.
@@ -322,6 +327,10 @@ const AddReservationModal: React.FC<AddReservationModalProps> = ({ isOpen, onClo
                                     {loadingSlots && <FontAwesomeIcon icon={faSpinner} className="animate-spin absolute right-10 top-10 text-slate-400" />}
                                 </div>
                             </div>
+                            <Select label="Consultation Type*" value={consultationType} onChange={e => setConsultationType(e.target.value as ConsultationType)}>
+                                <option value="direct">Direct Visit</option>
+                                <option value="online">Online Consultation</option>
+                            </Select>
                         </>
                     </div>
                     <div className="flex justify-end space-x-3 p-6 bg-slate-50 dark:bg-slate-950/50 border-t">
@@ -338,16 +347,10 @@ interface SubscriptionExpiredModalProps {
   isOpen: boolean;
 }
 
-const formatCurrency = (amount: number, currencyCode: string = 'INR') => {
-    if (isNaN(amount)) amount = 0;
-    const symbols: { [key: string]: string } = { USD: '$', INR: '₹', EUR: '€', GBP: '£' };
-    const symbol = symbols[currencyCode] || '$';
-    return `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-
 const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> = ({ isOpen }) => {
   const { user, switchToFreePlan, getSubscriptionPackages, initiatePaymentForPackage } = useAuth();
   const { addToast } = useToast();
+  const { formatCurrency } = useFormatting();
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null); // packageId or 'switch'
   const [packages, setPackages] = useState<SubscriptionPackage[]>([]);
@@ -455,7 +458,7 @@ const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> = ({ isO
                                      {isFree ? (
                                         <p className="text-3xl font-extrabold">Free</p>
                                     ) : (
-                                        <p className="mt-2 text-3xl font-extrabold">{formatCurrency(getPrice(pkg, selectedInterval), 'INR')}<span className="text-base font-medium text-slate-500">/{selectedInterval === 'monthly' ? 'mo' : selectedInterval === 'quarterly' ? 'qtr' : 'yr'}</span></p>
+                                        <p className="mt-2 text-3xl font-extrabold">{formatCurrency(getPrice(pkg, selectedInterval))}<span className="text-base font-medium text-slate-500">/{selectedInterval === 'monthly' ? 'mo' : selectedInterval === 'quarterly' ? 'qtr' : 'yr'}</span></p>
                                     )}
                                     <p className="mt-2 text-sm text-slate-500 min-h-[40px]">{pkg.description}</p>
                                     <ul className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-400">
@@ -507,11 +510,14 @@ interface SubscriptionReminderModalProps {
   planInterval?: string;
 }
 
+import { useFormatting } from '@/utils/formatting';
+
 const SubscriptionReminderModal: React.FC<SubscriptionReminderModalProps> = ({ isOpen, onClose, onRenew, expiryDate, planName, planInterval }) => {
+  const { formatDate } = useFormatting();
   if (!isOpen) return null;
 
   const formattedDate = expiryDate
-    ? expiryDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    ? formatDate(expiryDate)
     : 'soon';
 
   return (
@@ -554,6 +560,7 @@ const SubscriptionReminderModal: React.FC<SubscriptionReminderModalProps> = ({ i
 const PrintPreviewModal: React.FC = () => {
     // FIX: Get invoiceToPrint and setInvoiceToPrint from useAuth context
     const { user, invoiceToPrint, setInvoiceToPrint, getPatientById } = useAuth();
+    const { formatDate, formatTime, formatCurrency } = useFormatting();
     const [patient, setPatient] = useState<Partial<PatientDocument>>({});
 
     useEffect(() => {
@@ -579,10 +586,6 @@ const PrintPreviewModal: React.FC = () => {
     const settings = type === 'Treatment' 
         ? user.hospitalInvoiceSettings?.treatmentInvoice 
         : user.hospitalInvoiceSettings?.posInvoice;
-
-    console.log("PrintPreviewModal - settings:", settings);
-    console.log("PrintPreviewModal - printerType:", settings?.printerType);
-    console.log("PrintPreviewModal - design:", settings?.design);
 
     if (!settings) {
         // FIX: Use setInvoiceToPrint from context to close the modal
@@ -698,17 +701,19 @@ const PrintPreviewModal: React.FC = () => {
                     </div>
                     <div className="p-4 overflow-auto">
                         <div className="print-modal-content mx-auto" style={{ zoom: settings.printerType === 'A4' ? 0.8 : 1 }}>
-                           {InvoiceComponent ? <InvoiceComponent hospital={hospital} patient={patient} invoice={invoice} type={type} footerText={settings.footerText} /> : <p>Selected template not found.</p>}
+                           {InvoiceComponent ? <InvoiceComponent hospital={hospital} patient={patient} invoice={invoice} type={type} footerText={settings.footerText} formatDate={formatDate} formatTime={formatTime} formatCurrency={formatCurrency} /> : <p>Selected template not found.</p>}
                         </div>
                     </div>
                 </div>
             </div>
             <div className="printable-area">
-                {InvoiceComponent && <InvoiceComponent hospital={hospital} patient={patient} invoice={invoice} type={type} footerText={settings.footerText} />}
+                {InvoiceComponent && <InvoiceComponent hospital={hospital} patient={patient} invoice={invoice} type={type} footerText={settings.footerText} formatDate={formatDate} formatTime={formatTime} formatCurrency={formatCurrency} />}
             </div>
         </>
     );
 };
+
+
 
 
 const App: React.FC = () => {
@@ -790,6 +795,7 @@ const AppContent: React.FC = () => {
         ) : user.roleName === 'patient' ? (
             <>
                 <Route path="/patient/*" element={<PatientLayout />} />
+
                 <Route path="*" element={<Navigate to="/patient/dashboard" />} />
             </>
         ) : user.hospitalSlug ? (
@@ -808,34 +814,43 @@ const AppContent: React.FC = () => {
 
 type ActiveModal = 'patient' | 'doctor' | 'treatment' | 'reservation' | 'stockItem' | 'vendor' | null;
 
+
+
+
 const ProtectedLayout: React.FC = () => {
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
-    () => localStorage.getItem('sidebarCollapsed') === 'true'
-  );
+  const { user, addAppointment, addPatient, addDoctor, addStock, addVendor, initiatePaymentForPackage } = useAuth();
+  const { hospitalSlug } = useParams<{ hospitalSlug: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, addPatient, addDoctor, addTreatment, addAppointment, addStock, addVendor, initiatePaymentForPackage, currentLocation } = useAuth();
   const { addToast } = useToast();
-  const { hospitalSlug } = useParams<{ hospitalSlug: string }>();
-  
+
+
   // State for centralized modal management
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
   const [upgradeModalInfo, setUpgradeModalInfo] = useState({ isOpen: false, message: '' });
   const [isRenewalModalOpen, setIsRenewalModalOpen] = useState(false);
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
   const reminderCheckPerformed = useRef(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('sidebarCollapsed') === 'true';
+  });
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
 
-  if (user && user.hospitalSlug !== hospitalSlug) {
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  if (user.hospitalSlug !== hospitalSlug) {
     return <Navigate to={`/hospitals/${user.hospitalSlug}/dashboard`} />;
   }
   
-  if (user && user.hospitalStatus === 'inactive') {
+  if (user.hospitalStatus === 'inactive') {
       return <SuspendedScreen />;
   }
   
-  const isSubscriptionExpired = user && user.hospitalSubscriptionExpiryDate && user.hospitalSubscriptionExpiryDate.toDate() < new Date();
-  const isPaidPlan = (user?.subscriptionPackage?.prices?.monthly ?? 0) > 0;
+  const isSubscriptionExpired = user.hospitalSubscriptionExpiryDate && user.hospitalSubscriptionExpiryDate.toDate() < new Date();
+  const isPaidPlan = (user.subscriptionPackage?.prices?.monthly ?? 0) > 0;
 
   useEffect(() => {
     if (isSubscriptionExpired && isPaidPlan) {
@@ -1069,6 +1084,7 @@ const ProtectedLayout: React.FC = () => {
         onClose={closeModal}
         onSave={(data: NewVendorData) => handleGenericSave(addVendor, data, 'Vendor')}
       />
+      
     </div>
   );
 };

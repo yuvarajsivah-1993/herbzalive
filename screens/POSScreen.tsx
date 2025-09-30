@@ -12,12 +12,7 @@ import Select from '../components/ui/Select';
 import Avatar from '../components/ui/Avatar';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-const currencySymbols: { [key: string]: string } = { USD: '$', EUR: '€', GBP: '£', INR: '₹' };
-const formatCurrency = (amount: number, currencyCode: string = 'USD') => {
-    const symbol = currencySymbols[currencyCode] || '$';
-    if (isNaN(amount)) amount = 0;
-    return `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+
 
 const PaymentModal: React.FC<{
     isOpen: boolean;
@@ -27,7 +22,8 @@ const PaymentModal: React.FC<{
     currency: string;
     loading: boolean;
     isWalkInCustomer: boolean;
-}> = ({ isOpen, onClose, onConfirm, totalAmount, currency, loading, isWalkInCustomer }) => {
+    formatCurrency: (amount: number) => string;
+}> = ({ isOpen, onClose, onConfirm, totalAmount, currency, loading, isWalkInCustomer, formatCurrency }) => {
     const [paymentMethod, setPaymentMethod] = useState<POSPaymentMethod>('Cash');
     const [amountPaid, setAmountPaid] = useState('');
     const modalRef = useRef<HTMLDivElement>(null);
@@ -61,7 +57,7 @@ const PaymentModal: React.FC<{
                 <div className="p-6 space-y-4">
                     <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/50 rounded-lg">
                         <p className="text-sm uppercase text-blue-600 dark:text-blue-300">Total Amount Due</p>
-                        <p className="text-5xl font-extrabold text-blue-800 dark:text-blue-200">{formatCurrency(totalAmount, currency)}</p>
+                        <p className="text-5xl font-extrabold text-blue-800 dark:text-blue-200">{formatCurrency(totalAmount)}</p>
                     </div>
                     <Select label="Payment Method" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as any)}>
                         <option>Cash</option>
@@ -78,7 +74,7 @@ const PaymentModal: React.FC<{
                     {changeDue > 0 && (
                         <div className="text-center p-3 bg-green-50 dark:bg-green-900/50 rounded-lg">
                             <p className="text-sm text-green-600 dark:text-green-300">Change Due</p>
-                            <p className="text-2xl font-bold text-green-800 dark:text-green-200">{formatCurrency(changeDue, currency)}</p>
+                            <p className="text-2xl font-bold text-green-800 dark:text-green-200">{formatCurrency(changeDue)}</p>
                         </div>
                     )}
                 </div>
@@ -100,7 +96,8 @@ const DiscountModal: React.FC<{
     title: string;
     currency: string;
     lineTotal: number;
-}> = ({ isOpen, onClose, onSave, title, currency, lineTotal }) => {
+    formatCurrency: (amount: number) => string;
+}> = ({ isOpen, onClose, onSave, title, currency, lineTotal, formatCurrency }) => {
     const [type, setType] = useState<'amount' | 'percentage'>('amount');
     const [value, setValue] = useState('0');
     const modalRef = useRef<HTMLDivElement>(null);
@@ -129,7 +126,7 @@ const DiscountModal: React.FC<{
             <div ref={modalRef} className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-sm m-4">
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800">
                     <h3 className="text-xl font-bold">{title}</h3>
-                    <p className="text-sm text-slate-500">Total: {formatCurrency(lineTotal, currency)}</p>
+                    <p className="text-sm text-slate-500">Total: {formatCurrency(lineTotal)}</p>
                 </div>
                 <div className="p-6 space-y-4">
                     <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
@@ -159,9 +156,11 @@ interface BatchSelectionModalProps {
     onClose: () => void;
     onSelect: (item: StockItem, batch: StockBatch) => void;
     currency: string;
+    formatDate: (date: Date) => string;
+    formatCurrency: (amount: number) => string;
 }
 
-const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({ item, onClose, onSelect, currency }) => {
+const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({ item, onClose, onSelect, currency, formatDate, formatCurrency }) => {
     const modalRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -201,9 +200,9 @@ const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({ item, onClose
                                 {availableBatches.map(batch => (
                                     <tr key={batch.id}>
                                         <td className="p-2 font-mono text-slate-800 dark:text-slate-200">{batch.batchNumber}</td>
-                                        <td className="p-2 text-slate-700 dark:text-slate-300">{batch.expiryDate ? batch.expiryDate.toDate().toLocaleDateString() : 'N/A'}</td>
+                                        <td className="p-2 text-slate-700 dark:text-slate-300">{batch.expiryDate ? formatDate(batch.expiryDate.toDate()) : 'N/A'}</td>
                                         <td className="p-2 text-right text-slate-700 dark:text-slate-300">{batch.quantity}</td>
-                                        <td className="p-2 text-right font-semibold text-slate-800 dark:text-slate-200">{formatCurrency(batch.salePrice, currency)}</td>
+                                        <td className="p-2 text-right font-semibold text-slate-800 dark:text-slate-200">{formatCurrency(batch.salePrice)}</td>
                                         <td className="p-2 text-right">
                                             <Button size="sm" onClick={() => onSelect(item, batch)}>Select</Button>
                                         </td>
@@ -220,9 +219,12 @@ const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({ item, onClose
     );
 };
 
+import { useFormatting } from '@/utils/formatting';
+
 const POSScreen: React.FC = () => {
-    const { user, stockItems, patients, taxes, addPOSSale, setInvoiceToPrint, getPOSSales } = useAuth();
+    const { user, stockItems, patients, taxes, addPOSSale, setInvoiceToPrint, getPOSSales, currentLocation } = useAuth();
     const { addToast } = useToast();
+    const { formatDate, formatTime, formatCurrency } = useFormatting();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -300,11 +302,16 @@ const POSScreen: React.FC = () => {
                 }
             });
     }, [searchTerm, availableStockItems, categoryFilter, sortOrder, salesCount]);
+
+    const activePatients = useMemo(() => {
+        if (!currentLocation) return patients.filter(p => p.status === 'active');
+        return patients.filter(p => p.status === 'active' && p.locationId === currentLocation.id);
+    }, [patients, currentLocation]);
     
     const patientOptions = useMemo((): SearchableOption[] => [
         { value: 'walk-in', label: 'Walk-in Customer' },
-        ...patients.map(p => ({ value: p.id, label: p.name, secondaryLabel: `ID: ${p.patientId}` }))
-    ], [patients]);
+        ...activePatients.map(p => ({ value: p.id, label: p.name, secondaryLabel: `ID: ${p.patientId}` }))
+    ], [activePatients]);
 
     const selectedPatient = useMemo(() => patients.find(p => p.id === selectedPatientId), [patients, selectedPatientId]);
 
@@ -380,7 +387,7 @@ const POSScreen: React.FC = () => {
 
             setCart(prevCart => [...prevCart, {
                 stockItemId: item.id!, batchId: batch.id, batchNumber: batch.batchNumber,
-                expiryDate: batch.expiryDate?.toDate().toLocaleDateString('en-GB') || '',
+                expiryDate: batch.expiryDate?.toDate() ? formatDate(batch.expiryDate.toDate()) : '',
                 hsnCode: item.hsnCode || '', name: item.name, sku: item.sku, quantity: 1,
                 unitType: item.unitType, salePrice: parseFloat(salePriceBeforeTax.toFixed(2)),
                 taxRate, taxAmount: parseFloat(taxAmountPerUnit.toFixed(2)), taxName, discountAmount: 0,
@@ -425,10 +432,10 @@ const POSScreen: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950">
-            {selectedItemForBatch && <BatchSelectionModal item={selectedItemForBatch} onClose={() => setSelectedItemForBatch(null)} onSelect={handleBatchSelected} currency={currency} />}
-            <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} onConfirm={handleConfirmSale} totalAmount={cartSummary.totalAmount} currency={currency} loading={isProcessingSale} isWalkInCustomer={selectedPatientId === 'walk-in'} />
-            {editingDiscountItem && <DiscountModal isOpen={true} onClose={() => setEditingDiscountItem(null)} onSave={(type, val) => handleSaveItemDiscount(editingDiscountItem.stockItemId, type, val)} title={`Discount for ${editingDiscountItem.name}`} currency={currency} lineTotal={(editingDiscountItem.salePrice + editingDiscountItem.taxAmount) * editingDiscountItem.quantity} />}
-            <DiscountModal isOpen={isOverallDiscountModalOpen} onClose={() => setIsOverallDiscountModalOpen(false)} onSave={handleSaveOverallDiscount} title="Overall Bill Discount" currency={currency} lineTotal={cartSummary.taxInclusiveTotal - cartSummary.totalItemDiscount} />
+            {selectedItemForBatch && <BatchSelectionModal item={selectedItemForBatch} onClose={() => setSelectedItemForBatch(null)} onSelect={handleBatchSelected} currency={currency} formatDate={formatDate} formatCurrency={formatCurrency} />}
+            <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} onConfirm={handleConfirmSale} totalAmount={cartSummary.totalAmount} currency={currency} loading={isProcessingSale} isWalkInCustomer={selectedPatientId === 'walk-in'} formatCurrency={formatCurrency} />
+            {editingDiscountItem && <DiscountModal isOpen={true} onClose={() => setEditingDiscountItem(null)} onSave={(type, val) => handleSaveItemDiscount(editingDiscountItem.stockItemId, type, val)} title={`Discount for ${editingDiscountItem.name}`} currency={currency} lineTotal={(editingDiscountItem.salePrice + editingDiscountItem.taxAmount) * editingDiscountItem.quantity} formatCurrency={formatCurrency} />}
+            <DiscountModal isOpen={isOverallDiscountModalOpen} onClose={() => setIsOverallDiscountModalOpen(false)} onSave={handleSaveOverallDiscount} title="Overall Bill Discount" currency={currency} lineTotal={cartSummary.taxInclusiveTotal - cartSummary.totalItemDiscount} formatCurrency={formatCurrency} />
             
             <div className="w-full md:w-3/5 lg:w-2/3 p-4 flex flex-col">
                 <div className="mb-4 flex flex-col sm:flex-row gap-4 items-end">
@@ -443,7 +450,7 @@ const POSScreen: React.FC = () => {
                                 <div className="w-full h-20 bg-slate-100 dark:bg-slate-800 rounded-md flex items-center justify-center mb-2">{item.photoUrl ? <img src={item.photoUrl} alt={item.name} className="h-full w-full object-cover rounded-md" /> : <FontAwesomeIcon icon={faBoxOpen} className="h-8 w-8 text-slate-400" />}</div>
                                 <p className="text-sm font-semibold truncate text-slate-800 dark:text-slate-200">{item.name}</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">In Stock: {item.totalStock}</p>
-                                <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-1">{formatCurrency(item.batches?.sort((a,b) => (b.expiryDate?.seconds || 0) - (a.expiryDate?.seconds || 0))[0]?.salePrice || 0, currency)}</p>
+                                <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-1">{formatCurrency(item.batches?.sort((a,b) => (b.expiryDate?.seconds || 0) - (a.expiryDate?.seconds || 0))[0]?.salePrice || 0)}</p>
                             </button>
                         ))}
                     </div>
@@ -459,22 +466,22 @@ const POSScreen: React.FC = () => {
                     <div className="flex-1 overflow-y-auto -mr-4 pr-4">{cart.length === 0 ? <div className="flex items-center justify-center h-full text-slate-500">Your cart is empty</div> : <div className="divide-y divide-slate-100 dark:divide-slate-800">{cart.map(item => (<div key={`${item.stockItemId}-${item.batchId}`} className="flex items-start gap-3 py-3">
                         <div className="flex-1">
                             <p className="font-semibold text-slate-800 dark:text-slate-200">{item.name}</p>
-                            <p className="text-sm text-slate-500">{item.quantity} &times; {formatCurrency(item.salePrice, currency)}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Tax: {formatCurrency(item.taxAmount * item.quantity, currency)}</p>
-                            {item.discountAmount > 0 && <p className="text-xs text-green-600">Discount: -{formatCurrency(item.discountAmount, currency)}</p>}
+                            <p className="text-sm text-slate-500">{item.quantity} &times; {formatCurrency(item.salePrice)}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Tax: {formatCurrency(item.taxAmount * item.quantity)}</p>
+                            {item.discountAmount > 0 && <p className="text-xs text-green-600">Discount: -{formatCurrency(item.discountAmount)}</p>}
                             <Button variant="ghost" size="sm" className="!p-1 h-auto text-xs text-blue-600 hover:bg-blue-50" onClick={() => setEditingDiscountItem(item)}><FontAwesomeIcon icon={faTag} className="mr-1" /> Discount</Button>
                         </div>
                         <div className="flex items-center gap-1 w-32 justify-center"><Button size="sm" variant="light" onClick={() => handleUpdateQuantity(item.stockItemId, item.batchId, item.quantity - 1)} className="!p-2 h-8 w-8"><FontAwesomeIcon icon={faMinus} /></Button><Input type="number" value={item.quantity} onChange={e => handleUpdateQuantity(item.stockItemId, item.batchId, parseInt(e.target.value))} className="w-14 text-center !py-1"/><Button size="sm" variant="light" onClick={() => handleUpdateQuantity(item.stockItemId, item.batchId, item.quantity + 1)} className="!p-2 h-8 w-8"><FontAwesomeIcon icon={faPlus} /></Button></div>
-                        <p className="font-bold w-24 text-right">{formatCurrency(((item.salePrice + item.taxAmount) * item.quantity) - (item.discountAmount || 0), currency)}</p>
+                        <p className="font-bold w-24 text-right">{formatCurrency(((item.salePrice + item.taxAmount) * item.quantity) - (item.discountAmount || 0))}</p>
                         <div className="w-8 text-center pt-1"><button onClick={() => handleUpdateQuantity(item.stockItemId, item.batchId, 0)} className="text-slate-400 hover:text-red-500 p-2 -m-2"><FontAwesomeIcon icon={faTimes} /></button></div>
                     </div>))}</div>}</div>
                     {cart.length > 0 && <div className="py-4 space-y-1 text-sm border-t border-slate-200 dark:border-slate-800">
-                        <div className="flex justify-between text-slate-600 dark:text-slate-400"><p>Gross Total</p><p>{formatCurrency(cartSummary.grossTotal, currency)}</p></div>
-                        <div className="flex justify-between text-slate-600 dark:text-slate-400"><p>Total Tax</p><p>{formatCurrency(cartSummary.totalTax, currency)}</p></div>
-                        <div className="flex justify-between font-semibold text-slate-700 dark:text-slate-300"><p>Subtotal</p><p>{formatCurrency(cartSummary.taxInclusiveTotal, currency)}</p></div>
-                        <div className="flex justify-between text-green-600"><p>Item Discounts</p><p>- {formatCurrency(cartSummary.totalItemDiscount, currency)}</p></div>
-                        <div className="flex justify-between items-center text-green-600"><Button variant="ghost" size="sm" className="!p-0 h-auto text-xs" onClick={() => setIsOverallDiscountModalOpen(true)}><FontAwesomeIcon icon={faTag} className="mr-1"/> Overall Discount</Button><span>- {formatCurrency(cartSummary.overallDiscount, currency)}</span></div>
-                        <div className="flex justify-between font-bold text-2xl text-slate-800 dark:text-100 mt-2 pt-2 border-t"><p>Grand Total</p><p>{formatCurrency(cartSummary.totalAmount, currency)}</p></div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400"><p>Gross Total</p><p>{formatCurrency(cartSummary.grossTotal)}</p></div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400"><p>Total Tax</p><p>{formatCurrency(cartSummary.totalTax)}</p></div>
+                        <div className="flex justify-between font-semibold text-slate-700 dark:text-slate-300"><p>Subtotal</p><p>{formatCurrency(cartSummary.taxInclusiveTotal)}</p></div>
+                        <div className="flex justify-between text-green-600"><p>Item Discounts</p><p>- {formatCurrency(cartSummary.totalItemDiscount)}</p></div>
+                        <div className="flex justify-between items-center text-green-600"><Button variant="ghost" size="sm" className="!p-0 h-auto text-xs" onClick={() => setIsOverallDiscountModalOpen(true)}><FontAwesomeIcon icon={faTag} className="mr-1"/> Overall Discount</Button><span>- {formatCurrency(cartSummary.overallDiscount)}</span></div>
+                        <div className="flex justify-between font-bold text-2xl text-slate-800 dark:text-100 mt-2 pt-2 border-t"><p>Grand Total</p><p>{formatCurrency(cartSummary.totalAmount)}</p></div>
                     </div>}
                 </div>
                 <div className="mt-auto pt-4 flex gap-2">

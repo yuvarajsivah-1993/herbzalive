@@ -38,12 +38,12 @@ const calculateExpenseTotals = async (hospitalId: string, subtotal: number, taxG
 export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadFileFunction) => {
     
     // Invoice Management
-    const getInvoices = useCallback(async (startDate?: Date, endDate?: Date): Promise<Invoice[]> => {
+    const getInvoices = useCallback(async (startDate?: Date, endDate?: Date, locationIdFilter?: string): Promise<Invoice[]> => {
         if (!user) return [];
         let q: firebase.firestore.Query = db.collection("invoices").where("hospitalId", "==", user.hospitalId);
 
-        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
-            q = q.where("locationId", "==", user.currentLocation.id);
+        if (locationIdFilter && locationIdFilter !== 'all') {
+            q = q.where("locationId", "==", locationIdFilter);
         }
 
         if (startDate) {
@@ -125,7 +125,6 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
                 transaction.update(locationRef, { lastInvoiceNumber: increment(1) });
             });
         } catch (e) {
-            console.error("Failed to add invoice in transaction", e);
             throw new Error("Could not create new invoice. Please try again.");
         }
     }, [user]);
@@ -245,23 +244,38 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
         startDate?: Date,
         endDate?: Date,
         limitVal: number = 20,
-        lastVisible: firebase.firestore.QueryDocumentSnapshot | null = null
+        lastVisible: firebase.firestore.QueryDocumentSnapshot | null = null,
+        categoryFilter?: string,
+        searchTerm?: string
     ): Promise<{ expenses: Expense[]; lastVisible: firebase.firestore.QueryDocumentSnapshot | null }> => {
         if (!user) return { expenses: [], lastVisible: null };
 
-        let q: firebase.firestore.Query = db.collection("expenses")
-            .where("hospitalId", "==", user.hospitalId)
-            .orderBy("date", "desc");
+        let q: firebase.firestore.Query = db.collection("expenses");
 
+        // Equality filters
+        q = q.where("hospitalId", "==", user.hospitalId);
         if (locationId && locationId !== 'all') {
             q = q.where("locationId", "==", locationId);
         }
-        if (startDate) {
-            q = q.where("date", ">=", firebase.firestore.Timestamp.fromDate(startDate));
+        if (categoryFilter) {
+            q = q.where("category", "==", categoryFilter);
         }
-        if (endDate) {
-            q = q.where("date", "<=", firebase.firestore.Timestamp.fromDate(endDate));
+
+        // Ordering and range filters
+        if (searchTerm) {
+            q = q.orderBy('expenseId').startAt(searchTerm).endAt(searchTerm + '\uf8ff');
+        } else {
+            q = q.orderBy("date", "desc");
+            if (startDate) {
+                q = q.where("date", ">=", firebase.firestore.Timestamp.fromDate(startDate));
+            }
+            if (endDate) {
+                const endOfDay = new Date(endDate);
+                endOfDay.setHours(23, 59, 59, 999);
+                q = q.where("date", "<=", firebase.firestore.Timestamp.fromDate(endOfDay));
+            }
         }
+
         if (lastVisible) {
             q = q.startAfter(lastVisible);
         }
@@ -280,17 +294,20 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
         return null;
     }, [user]);
     
-    const addExpense = useCallback(async (data: NewExpenseData) => {
+    const addExpense = useCallback(async (data: NewExpenseData): Promise<Expense> => {
 // FIX: Add check for user.currentLocation
         if (!user || !user.hospitalId || !user.currentLocation) throw new Error("User not authenticated or location not set");
-        const hospitalRef = db.collection('hospitals').doc(user.hospitalId);
+        const locationRef = db.collection('hospitalLocations').doc(user.currentLocation.id);
         const newExpenseRef = db.collection("expenses").doc();
+        let newExpense: Expense;
 
         await db.runTransaction(async (t) => {
-            const hospitalDoc = await t.get(hospitalRef);
-            if (!hospitalDoc.exists) throw "Hospital document not found!";
-            const lastExpenseNumber = hospitalDoc.data()!.lastExpenseNumber || 0;
-            const expenseId = `EXP-${String(lastExpenseNumber + 1).padStart(6, '0')}`;
+            const locationDoc = await t.get(locationRef);
+            if (!locationDoc.exists) throw "Hospital location document not found!";
+            const lastExpenseNumber = locationDoc.data()!.lastExpenseNumber || 0;
+            const prefix = 'EXP-';
+            const locationCode = user.currentLocation!.code || user.currentLocation!.name.substring(0, 3).toUpperCase();
+            const expenseId = `${prefix}${locationCode}-${String(lastExpenseNumber + 1).padStart(6, '0')}`;
 
             let documentUrl = '', documentName = '';
             if (data.document) {
@@ -323,9 +340,13 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
                 documentName,
             };
             
+            newExpense = { ...newData, id: newExpenseRef.id };
+            console.log("Saving new expense with locationId:", newData.locationId);
             t.set(newExpenseRef, newData);
-            t.update(hospitalRef, { lastExpenseNumber: increment(1) });
+            t.update(locationRef, { lastExpenseNumber: increment(1) });
         });
+
+        return newExpense!;
     }, [user, uploadFile]);
     
     const updateExpense = useCallback(async (expenseId: string, data: ExpenseUpdateData) => {

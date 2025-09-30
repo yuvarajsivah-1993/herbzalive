@@ -14,12 +14,7 @@ import Select from '../components/ui/Select';
 import FileInput from '../components/ui/FileInput';
 import CreatableSearchableSelect from '../components/ui/CreatableSearchableSelect';
 
-const currencySymbols: { [key: string]: string } = { USD: '$', EUR: '€', GBP: '£', INR: '₹' };
-const formatCurrency = (amount: number, currencyCode: string = 'USD') => {
-    const symbol = currencySymbols[currencyCode] || '$';
-    if(isNaN(amount)) amount = 0;
-    return `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+
 
 const ManagePaymentModal: React.FC<{
     isOpen: boolean;
@@ -30,6 +25,7 @@ const ManagePaymentModal: React.FC<{
 }> = ({ isOpen, onClose, expense, paymentToEdit, onSuccess }) => {
     const { user, updateExpensePayment, updateExpensePaymentDetails } = useAuth();
     const { addToast } = useToast();
+    const { formatCurrency } = useFormatting();
     const isEditMode = paymentToEdit !== null;
 
     const [amount, setAmount] = useState('0.00');
@@ -92,7 +88,7 @@ const ManagePaymentModal: React.FC<{
                 <form onSubmit={handleSubmit}>
                     <div className="p-6 border-b"><h3 className="text-xl font-bold">{isEditMode ? 'Edit Payment' : 'Add Payment'}</h3><p className="text-sm text-slate-500">For Expense: {expense.expenseId}</p></div>
                     <div className="p-6 space-y-4">
-                        <div className="p-3 text-center bg-blue-50 dark:bg-blue-900/50 rounded-lg"><p className="text-sm text-blue-600">Amount Due</p><p className="text-3xl font-bold text-blue-800">{formatCurrency(amountDue, currency)}</p></div>
+                        <div className="p-3 text-center bg-blue-50 dark:bg-blue-900/50 rounded-lg"><p className="text-sm text-blue-600">Amount Due</p><p className="text-3xl font-bold text-blue-800">{formatCurrency(amountDue)}</p></div>
                         <Input label={`Amount`} type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
                         <Select label="Payment Method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Other</option></Select>
                         <Input label="Note (Optional)" type="text" value={note} onChange={(e) => setNote(e.target.value)} />
@@ -130,11 +126,15 @@ const DetailCard: React.FC<{ title: string, children: React.ReactNode, actions?:
 );
 
 
+import { useFormatting } from '@/utils/formatting';
+
 const ExpenseDetailsScreen: React.FC = () => {
+    console.log("ExpenseDetailsScreen component rendering");
     const { expenseId } = useParams<{ expenseId: string }>();
     const navigate = useNavigate();
     const { user, getExpenseById, deleteExpense, addExpenseComment, updateExpenseComment, deleteExpenseComment, deleteExpensePayment, updateExpense, getTaxGroups, addExpenseCategory, deleteExpenseCategory } = useAuth();
     const { addToast } = useToast();
+    const { formatDate, formatCurrency } = useFormatting();
     const [expense, setExpense] = useState<Expense | null>(null);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -311,7 +311,7 @@ const ExpenseDetailsScreen: React.FC = () => {
                                 <Input label="Payment Terms (days)" type="number" value={formData.paymentTerms || ''} onChange={e => setFormData({...formData, paymentTerms: parseInt(e.target.value) || 0})} />
                             </>) : (<>
                                 <div><p className="text-sm text-slate-500">Category</p><p className="font-bold text-xl text-slate-800 dark:text-slate-200">{expense.category}</p></div>
-                                <div><p className="text-sm text-slate-500">Expense Date</p><p className="font-semibold text-slate-700 dark:text-slate-300">{expense.date.toDate().toLocaleDateString()}</p></div>
+                                <div><p className="text-sm text-slate-500">Expense Date</p><p className="font-semibold text-slate-700 dark:text-slate-300">{formatDate(expense.date.toDate())}</p></div>
                                 <div><p className="text-sm text-slate-500">Payment Terms</p><p className="font-semibold text-slate-700 dark:text-slate-300">{expense.paymentTerms ? `${expense.paymentTerms} days` : 'N/A'}</p></div>
                             </>)}
                         </div>
@@ -368,16 +368,16 @@ const ExpenseDetailsScreen: React.FC = () => {
                             <Select label="Tax Group" value={formData.taxGroupId || ''} onChange={e => setFormData({...formData, taxGroupId: e.target.value || null})}> <option value="">No Tax</option> {taxGroups.map(group => <option key={group.id} value={group.id!}>{group.name} ({group.totalRate.toFixed(2)}%)</option>)} </Select>
                             <Input label="Discount (%)" type="number" step="0.01" value={formData.discountPercentage || ''} onChange={e => setFormData({...formData, discountPercentage: parseFloat(e.target.value) || 0})} />
                         </div>
-                        <div className="mt-4 p-4 bg-slate-100 rounded-lg flex justify-between items-center"><span className="font-bold text-lg">New Total</span><span className="font-bold text-2xl text-blue-600">{formatCurrency(newTotalAmount, currency)}</span></div>
+                        <div className="mt-4 p-4 bg-slate-100 rounded-lg flex justify-between items-center"><span className="font-bold text-lg">New Total</span><span className="font-bold text-2xl text-blue-600">{formatCurrency(newTotalAmount)}</span></div>
                     </>) : (<>
-                        <div className="flex justify-between text-slate-600"><p>Subtotal</p><p>{formatCurrency(expense.subtotal, currency)}</p></div>
-                        {(expense.taxes || []).map((tax, i) => <div key={i} className="flex justify-between text-slate-600"><p>{tax.name} ({tax.rate}%)</p><p>+ {formatCurrency(tax.amount, currency)}</p></div>)}
-                        {expense.discountPercentage > 0 && <div className="flex justify-between text-green-600"><p>Discount ({expense.discountPercentage}%)</p><p>- {formatCurrency(expense.discountAmount, currency)}</p></div>}
-                        <div className="flex justify-between font-bold text-lg pt-2 border-t"><p>Total</p><p>{formatCurrency(expense.totalAmount, currency)}</p></div>
+                        <div className="flex justify-between text-slate-600"><p>Subtotal</p><p>{formatCurrency(expense.subtotal)}</p></div>
+                        {(expense.taxes || []).map((tax, i) => <div key={i} className="flex justify-between text-slate-600"><p>{tax.name} ({tax.rate}%)</p><p>+ {formatCurrency(tax.amount)}</p></div>)}
+                        {expense.discountPercentage > 0 && <div className="flex justify-between text-green-600"><p>Discount ({expense.discountPercentage}%)</p><p>- {formatCurrency(expense.discountAmount)}</p></div>}
+                        <div className="flex justify-between font-bold text-lg pt-2 border-t"><p>Total</p><p>{formatCurrency(expense.totalAmount)}</p></div>
                     </>)}
 
-                    <div className="flex justify-between text-green-600"><p>Paid</p><p>- {formatCurrency(expense.amountPaid, currency)}</p></div>
-                    <div className="flex justify-between font-bold text-lg pt-2 border-t text-red-600"><p>Amount Due</p><p>{formatCurrency(amountDue, currency)}</p></div>
+                    <div className="flex justify-between text-green-600"><p>Paid</p><p>- {formatCurrency(expense.amountPaid)}</p></div>
+                    <div className="flex justify-between font-bold text-lg pt-2 border-t text-red-600"><p>Amount Due</p><p>{formatCurrency(amountDue)}</p></div>
                 </div>
 
                  {canWrite && amountDue > 0 && !isEditing && <Button className="w-full" variant="success" onClick={() => { setPaymentToEdit(null); setIsPaymentModalOpen(true); }}><FontAwesomeIcon icon={faMoneyBillWave} className="mr-2"/> Add Payment</Button>}
@@ -385,7 +385,7 @@ const ExpenseDetailsScreen: React.FC = () => {
                 <DetailCard title="Payment History">
                      <div className="space-y-2">
                         {(expense.paymentHistory || []).map(p => (<div key={p.id} className="group text-xs p-3 bg-slate-50 dark:bg-slate-800/50 rounded-md flex justify-between items-start"><div className="flex-1">
-                            <div className="flex items-center font-medium"><span>{p.method} on {p.date.toDate().toLocaleDateString()}</span><span className="ml-4 font-bold text-base">{formatCurrency(p.amount, currency)}</span></div>
+                            <div className="flex items-center font-medium"><span>{p.method} on {formatDate(p.date.toDate())}</span><span className="ml-4 font-bold text-base">{formatCurrency(p.amount)}</span></div>
                             {p.note && <p className="mt-1 text-slate-500 italic">Note: {p.note}</p>}
                              {p.recordedBy && <p className="mt-1 text-xs text-slate-500">Recorded by {p.recordedBy}</p>}
                         </div>{canWrite && <div className="opacity-0 group-hover:opacity-100 transition-opacity"><PaymentActionsDropdown onEdit={() => { setPaymentToEdit(p); setIsPaymentModalOpen(true); }} onDelete={() => setPaymentToDelete(p)} /></div>}</div>))}

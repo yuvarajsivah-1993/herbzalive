@@ -4,6 +4,7 @@ import Button from '../components/ui/Button';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus } from '@fortawesome/free-solid-svg-icons';
 import { Timestamp } from 'firebase/firestore';
+import { Link } from 'react-router-dom';
 
 
 const AppointmentsScreen: React.FC = () => {
@@ -20,7 +21,8 @@ const AppointmentsScreen: React.FC = () => {
       treatmentName: 'Routine Checkup', 
       status: 'Registered',
       hospitalId: 'h001',
-      locationId: 'l001'
+      locationId: 'l001',
+      consultationType: 'direct'
     },
     { 
       id: 'a002', 
@@ -33,7 +35,8 @@ const AppointmentsScreen: React.FC = () => {
       treatmentName: 'Follow-up', 
       status: 'Encounter',
       hospitalId: 'h001',
-      locationId: 'l001'
+      locationId: 'l001',
+      consultationType: 'online'
     },
     { 
       id: 'a003', 
@@ -46,7 +49,8 @@ const AppointmentsScreen: React.FC = () => {
       treatmentName: 'Consultation', 
       status: 'Finished',
       hospitalId: 'h001',
-      locationId: 'l001'
+      locationId: 'l001',
+      consultationType: 'direct'
     },
     { 
       id: 'a004', 
@@ -59,7 +63,8 @@ const AppointmentsScreen: React.FC = () => {
       treatmentName: 'Flu Shot', 
       status: 'Cancelled',
       hospitalId: 'h001',
-      locationId: 'l001'
+      locationId: 'l001',
+      consultationType: 'online'
     },
     { 
       id: 'a005', 
@@ -72,7 +77,8 @@ const AppointmentsScreen: React.FC = () => {
       treatmentName: 'Physical Exam', 
       status: 'Waiting Payment',
       hospitalId: 'h001',
-      locationId: 'l001'
+      locationId: 'l001',
+      consultationType: 'direct'
     },
   ], []);
 
@@ -117,6 +123,7 @@ const AppointmentsScreen: React.FC = () => {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Doctor</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date & Time</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Reason</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
                   <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                 </tr>
@@ -128,11 +135,12 @@ const AppointmentsScreen: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{appt.doctorName}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{formatAppointmentTime(appt.start)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{appt.treatmentName}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 capitalize">{appt.consultationType}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={getStatusBadge(appt.status)}>{appt.status}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <a href="#" className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">Details</a>
+                        <a href="#" className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">Details</a>
                     </td>
                   </tr>
                 ))}

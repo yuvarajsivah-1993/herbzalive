@@ -69,7 +69,7 @@ export const useClinicManagement = (user: AppUser | null, uploadFile: UploadFile
             const oldPhotoUrl = docSnap.data()?.photoUrl;
             if (oldPhotoUrl) {
                 const oldPhotoRef = storage.refFromURL(oldPhotoUrl);
-                await oldPhotoRef.delete().catch(e => console.error("Failed to delete old treatment photo", e));
+                await oldPhotoRef.delete().catch(() => {}); // Replace console.error with empty catch
             }
             updateData.photoUrl = '';
         } else if (photo) {
@@ -77,7 +77,7 @@ export const useClinicManagement = (user: AppUser | null, uploadFile: UploadFile
             const oldPhotoUrl = docSnap.data()?.photoUrl;
             if (oldPhotoUrl) {
                 const oldPhotoRef = storage.refFromURL(oldPhotoUrl);
-                await oldPhotoRef.delete().catch(e => console.error("Failed to delete old treatment photo", e));
+                await oldPhotoRef.delete().catch(() => {}); // Replace console.error with empty catch
             }
             
             let photoToUpload: Blob;
@@ -206,14 +206,14 @@ export const useClinicManagement = (user: AppUser | null, uploadFile: UploadFile
             const docSnap = await doctorDocRef.get();
             const oldPhotoUrl = docSnap.data()?.profilePhotoUrl;
             if (oldPhotoUrl) {
-                try { await storage.refFromURL(oldPhotoUrl).delete(); } catch (e) { console.warn("Failed to delete old doctor photo", e); }
+                try { await storage.refFromURL(oldPhotoUrl).delete(); } catch (e) { /* console.warn("Failed to delete old doctor photo", e); */ } // Replace console.warn with empty catch
             }
             updateData.profilePhotoUrl = '';
         } else if (profilePhoto) { // Handle new photo upload
             const docSnap = await doctorDocRef.get();
             const oldPhotoUrl = docSnap.data()?.profilePhotoUrl;
             if (oldPhotoUrl) {
-                try { await storage.refFromURL(oldPhotoUrl).delete(); } catch (e) { console.warn("Failed to delete old doctor photo", e); }
+                try { await storage.refFromURL(oldPhotoUrl).delete(); } catch (e) { /* console.warn("Failed to delete old doctor photo", e); */ } // Replace console.warn with empty catch
             }
             
             let photoToUpload: Blob;

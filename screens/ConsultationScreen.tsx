@@ -50,11 +50,17 @@ const PrescriptionRow: React.FC<{
 );
 
 
+import { useFormatting } from '@/utils/formatting';
+
+
 const ConsultationScreen: React.FC = () => {
     const { appointmentId } = useParams<{ appointmentId: string }>();
     const navigate = useNavigate();
     const { user, getPatientById, getAppointmentById, getConsultationForAppointment, getStocks, saveConsultation, getDoctorById, updateAppointment, getTreatments, addInvoice } = useAuth();
     const { addToast } = useToast();
+    const { formatDate, formatDateTime } = useFormatting();
+
+    const [isCallActive, setIsCallActive] = useState(false); // Define isCallActive state
 
     const [loading, setLoading] = useState(true);
     const [appointment, setAppointment] = useState<Appointment | null>(null);
@@ -116,9 +122,6 @@ const ConsultationScreen: React.FC = () => {
                     advice: consultationData.advice || '',
                     nextVisitDate: consultationData.nextVisitDate?.toDate(),
                 });
-            } else {
-                // Pre-fill allergies from patient record for new consultations
-                setFormData(prev => ({ ...prev, allergies: patientData?.allergies.join(', ') || '' }));
             }
 
         } catch (err) {
@@ -130,7 +133,7 @@ const ConsultationScreen: React.FC = () => {
 
     useEffect(() => {
         fetchAllData();
-    }, [fetchAllData]);
+    }, [fetchAllData, isCallActive]);
     
     const stockItemOptions: SearchableOption[] = useMemo(() => allStockItems.map(s => ({
         value: s.id!,
@@ -233,7 +236,7 @@ const ConsultationScreen: React.FC = () => {
                     <hr className="my-4"/>
                     <div className="flex justify-between">
                         <p><strong>Patient:</strong> {patient.name} ({calculateAge(patient.dateOfBirth)}Y/{patient.gender.charAt(0)})</p>
-                        <p><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
+                        <p><strong>Date:</strong> {formatDate(new Date())}</p>
                     </div>
                     <hr className="my-4"/>
                 </header>
@@ -241,6 +244,7 @@ const ConsultationScreen: React.FC = () => {
                 <div className="flex justify-between items-center no-print">
                     <Button variant="light" onClick={() => navigate(-1)}><FontAwesomeIcon icon={faChevronLeft} className="mr-2" /> Back</Button>
                     <div className="flex items-center gap-2">
+
                         <Button variant="light" onClick={handlePrint}><FontAwesomeIcon icon={faPrint} className="mr-2" /> Print</Button>
                         {!isReadOnly && <Button variant="primary" onClick={handleSave} disabled={loading}><FontAwesomeIcon icon={faSave} className="mr-2" /> {loading ? 'Saving...' : 'Save Consultation'}</Button>}
                     </div>
@@ -251,7 +255,7 @@ const ConsultationScreen: React.FC = () => {
                     <div>
                         <h2 className="text-xl font-bold">{patient.name}</h2>
                         <p className="text-slate-500">{patient.patientId} &middot; {calculateAge(patient.dateOfBirth)} years &middot; {patient.gender}</p>
-                        <p className="text-slate-500">Appointment on {appointment.start.toDate().toLocaleString()}</p>
+                        <p className="text-slate-500">Appointment on {formatDateTime(appointment.start.toDate())}</p>
                     </div>
                 </div>
 

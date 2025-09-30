@@ -89,7 +89,6 @@ export const useSubscriptionManagement = (user: AppUser | null, setUser: React.D
                     await recordSubscriptionPayment(transactionData);
                     addToast("Payment successful! Your subscription has been updated.", "success");
                 } catch (error) {
-                    console.error("Error processing successful payment:", error);
                     addToast("Payment was successful, but there was an issue updating your subscription. Please contact support.", "error");
                     const transactionData: NewSubscriptionTransactionData = {
                         paymentId: response.razorpay_payment_id,

@@ -98,10 +98,10 @@ export const usePayrollManagement = (user: AppUser | null, uploadFile: UploadFil
         const existingEmployee = employeeDoc.data() as Employee;
         
         if (profilePhoto === null) {
-            if(existingEmployee.profilePhotoUrl) await storage.refFromURL(existingEmployee.profilePhotoUrl).delete().catch(console.warn);
+            if(existingEmployee.profilePhotoUrl) await storage.refFromURL(existingEmployee.profilePhotoUrl).delete().catch(() => {}); // Replace console.warn with empty catch
             updateData.profilePhotoUrl = '';
         } else if (profilePhoto) {
-            if(existingEmployee.profilePhotoUrl) await storage.refFromURL(existingEmployee.profilePhotoUrl).delete().catch(console.warn);
+            if(existingEmployee.profilePhotoUrl) await storage.refFromURL(existingEmployee.profilePhotoUrl).delete().catch(() => {}); // Replace console.warn with empty catch
             let photoToUpload: Blob;
             if (typeof profilePhoto === 'string') photoToUpload = await (await fetch(profilePhoto)).blob();
             else photoToUpload = profilePhoto;
@@ -113,7 +113,7 @@ export const usePayrollManagement = (user: AppUser | null, uploadFile: UploadFil
         if (removedDocumentIds) {
             for (const docId of removedDocumentIds) {
                 const docToRemove = currentDocuments.find(d => d.id === docId);
-                if (docToRemove) await storage.refFromURL(docToRemove.url).delete().catch(console.warn);
+                if (docToRemove) await storage.refFromURL(docToRemove.url).delete().catch(() => {}); // Replace console.warn with empty catch
             }
             currentDocuments = currentDocuments.filter(d => !removedDocumentIds.includes(d.id));
         }
@@ -193,12 +193,12 @@ export const usePayrollManagement = (user: AppUser | null, uploadFile: UploadFil
         await db.collection('salaryGroups').doc(id).delete();
     }, []);
 
-    const getPayrollRuns = useCallback(async (): Promise<PayrollRun[]> => {
+    const getPayrollRuns = useCallback(async (locationIdFilter?: string): Promise<PayrollRun[]> => {
         if (!user) return [];
         let q: firebase.firestore.Query = db.collection('payrollRuns').where('hospitalId', '==', user.hospitalId);
 
-        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
-            q = q.where("locationId", "==", user.currentLocation.id);
+        if (locationIdFilter && locationIdFilter !== 'all') {
+            q = q.where("locationId", "==", locationIdFilter);
         }
 
         const snapshot = await q.get();
@@ -207,12 +207,12 @@ export const usePayrollManagement = (user: AppUser | null, uploadFile: UploadFil
         return runs;
     }, [user]);
     
-    const getLoans = useCallback(async (): Promise<Loan[]> => {
+    const getLoans = useCallback(async (locationIdFilter?: string): Promise<Loan[]> => {
         if (!user) return [];
         let q: firebase.firestore.Query = db.collection('loans').where('hospitalId', '==', user.hospitalId);
 
-        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
-            q = q.where("locationId", "==", user.currentLocation.id);
+        if (locationIdFilter && locationIdFilter !== 'all') {
+            q = q.where("locationId", "==", locationIdFilter);
         }
 
         const snapshot = await q.get();

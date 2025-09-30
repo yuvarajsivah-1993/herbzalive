@@ -60,7 +60,8 @@ const PatientJourneyTimeline: React.FC<{
   patient: PatientDocument;
   appointments: Appointment[];
   consultations: Consultation[];
-}> = ({ patient, appointments, consultations }) => {
+  formatDate: (date: Date) => string;
+}> = ({ patient, appointments, consultations, formatDate }) => {
 
   const events = useMemo((): TimelineEvent[] => {
     const allEvents: TimelineEvent[] = [];
@@ -130,7 +131,7 @@ const PatientJourneyTimeline: React.FC<{
                         
                         <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg">
                             <time className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                                {event.date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                {formatDate(event.date)}
                             </time>
                             <h4 className="mt-1 text-lg font-semibold text-slate-800 dark:text-slate-200">{event.title}</h4>
                             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{event.description}</p>
@@ -144,13 +145,9 @@ const PatientJourneyTimeline: React.FC<{
 };
 
 
-const formatFullDateTime = (timestamp: Timestamp | undefined) => {
-    if (!timestamp) return 'N/A';
-    return timestamp.toDate().toLocaleString('en-US', {
-      year: 'numeric', month: 'short', day: 'numeric',
-      hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
-    });
-};
+
+
+import { useFormatting } from '@/utils/formatting';
 
 const PatientDetailsScreen: React.FC = () => {
     const { patientId } = useParams<{ patientId: string }>();
@@ -165,6 +162,7 @@ const PatientDetailsScreen: React.FC = () => {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const { addToast } = useToast();
+    const { formatDate, formatDateTime } = useFormatting();
     const [confirmation, setConfirmation] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; confirmButtonText: string; variant: 'primary' | 'danger'; } | null>(null);
     const [activeTab, setActiveTab] = useState('info');
     const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
@@ -576,7 +574,7 @@ const PatientDetailsScreen: React.FC = () => {
                                     </div>
                                 )}
                                 <Input id="patientId" label="Patient ID" type="text" value={patient.patientId} disabled icon={<FontAwesomeIcon icon={faIdCard} className="h-5 w-5 text-gray-400" />} />
-                                <Input id="registeredAt" label="Registered On" type="text" value={formatFullDateTime(patient.registeredAt)} disabled icon={<FontAwesomeIcon icon={faCalendarCheck} className="h-5 w-5 text-gray-400" />} />
+                                <Input id="registeredAt" label="Registered On" type="text" value={formatDateTime(patient.registeredAt.toDate())} disabled icon={<FontAwesomeIcon icon={faCalendarCheck} className="h-5 w-5 text-gray-400" />} />
                                 <Input id="name" label="Full Name" type="text" required value={formData.name} onChange={e => handleInputChange('name', e.target.value)} disabled={!isEditing} icon={<FontAwesomeIcon icon={faUser} className="h-5 w-5 text-gray-400" />} />
                                 <Input id="email" label="Email" type="email" value={formData.email} onChange={e => handleInputChange('email', e.target.value)} disabled={!isEditing} icon={<FontAwesomeIcon icon={faEnvelope} className="h-5 w-5 text-gray-400" />} />
                                 <Input id="phone" label="Phone" type="tel" required value={formData.phone} onChange={e => handleInputChange('phone', e.target.value)} disabled={!isEditing} icon={<FontAwesomeIcon icon={faPhone} className="h-5 w-5 text-gray-400" />} />
@@ -631,6 +629,7 @@ const PatientDetailsScreen: React.FC = () => {
                         patient={patient}
                         appointments={appointments}
                         consultations={consultations}
+                        formatDate={formatDate}
                     />
                 )}
                 {activeTab === 'docs' && (
@@ -653,7 +652,7 @@ const PatientDetailsScreen: React.FC = () => {
                                             <FontAwesomeIcon icon={faFilePdf} className="h-6 w-6 text-red-500 mr-4" />
                                             <div>
                                                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{doc.name}</p>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400">Uploaded by {doc.uploadedBy} on {new Date(doc.uploadedAt.toDate()).toLocaleDateString()}</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">Uploaded by {doc.uploadedBy} on {formatDate(doc.uploadedAt.toDate())}</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -703,9 +702,7 @@ const PatientDetailsScreen: React.FC = () => {
                                 paginatedNotes.map(note => (
                                     <div key={note.id} className="group relative p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
                                         <p className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{note.text}</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-right">
-                                            By {note.createdBy} on {formatFullDateTime(note.createdAt)}
-                                        </p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">By {note.createdBy} on {formatDateTime(note.createdAt.toDate())}</p>
                                         {canWrite && (
                                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Button variant="ghost" size="sm" onClick={() => handleDeleteNoteRequest(note)} disabled={isActionInProgress} aria-label="Delete note">
@@ -741,7 +738,7 @@ const PatientDetailsScreen: React.FC = () => {
                                     <div key={appt.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
                                         <div>
                                             <p className="font-semibold">{appt.treatmentName} with {appt.doctorName}</p>
-                                            <p className="text-sm text-slate-500">{formatFullDateTime(appt.start)}</p>
+                                            <p className="text-sm text-slate-500">{formatDateTime(appt.start.toDate())}</p>
                                         </div>
                                         {hasConsultation ? (
                                             <Button size="sm" variant="light" onClick={() => navigate(`/hospitals/${currentUser?.hospitalSlug}/appointments/${appt.id}/consultation`)}>
@@ -802,7 +799,7 @@ const PatientDetailsScreen: React.FC = () => {
                                 <FontAwesomeIcon icon={faCalendarAlt} className="mr-2" />
                                 Next Visit Recommended
                             </p>
-                            <p className="text-md font-bold text-blue-600 dark:text-blue-400">{nextVisitDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                            <p className="text-md font-bold text-blue-600 dark:text-blue-400">{formatDate(nextVisitDate)}</p>
                         </div>
                     )}
                 </div>
@@ -814,7 +811,7 @@ const PatientDetailsScreen: React.FC = () => {
                                     <div>
                                         <p className="font-semibold">{appt.treatmentName}</p>
                                         <p className="text-sm text-slate-500">with {appt.doctorName}</p>
-                                        <p className="text-sm text-slate-500">{formatFullDateTime(appt.start)}</p>
+                                        <p className="text-sm text-slate-500">{formatDateTime(appt.start.toDate())}</p>
                                     </div>
                                     <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300`}>
                                         {appt.status}

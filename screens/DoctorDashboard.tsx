@@ -18,12 +18,7 @@ const currencySymbols: { [key: string]: string } = { USD: '$', EUR: '€', GBP: 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ef4444'];
 
 // --- Helper Functions ---
-const formatCurrency = (amount: number, currencyCode: string = 'USD') => {
-    if (isNaN(amount)) amount = 0;
-    const symbol = currencySymbols[currencyCode] || '$';
-    if (isNaN(amount)) amount = 0;
-    return `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+
 
 // --- Sub-components ---
 const StatCard: React.FC<{ title: string, value: string | number, icon: any, color: string }> = ({ title, value, icon, color }) => {
@@ -42,11 +37,11 @@ const StatCard: React.FC<{ title: string, value: string | number, icon: any, col
     </div>
 )};
 
-const AppointmentCard: React.FC<{ appointment: Appointment, patient?: PatientDocument, isNext: boolean, hasConsultation: boolean }> = ({ appointment, patient, isNext, hasConsultation }) => {
+const AppointmentCard: React.FC<{ appointment: Appointment, patient?: PatientDocument, isNext: boolean, hasConsultation: boolean, formatTime: (date: Date) => string }> = ({ appointment, patient, isNext, hasConsultation, formatTime }) => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    const handleAction = (e: React.MouseEvent) => {
+    const handleConsultationAction = (e: React.MouseEvent) => {
         e.stopPropagation();
         navigate(`/hospitals/${user?.hospitalSlug}/appointments/${appointment.id}/consultation`);
     };
@@ -66,7 +61,7 @@ const AppointmentCard: React.FC<{ appointment: Appointment, patient?: PatientDoc
             <Avatar avatar={patient?.profilePhotoUrl ? { type: 'image', value: patient.profilePhotoUrl } : { type: 'initials', value: patient?.name.split(' ').map(n=>n[0]).join('').toUpperCase() || '?', color: 'bg-indigo-500' }} size="md" />
             <div className="ml-4 flex-grow">
                 <p className="font-semibold text-slate-800 dark:text-slate-200">{patient?.name}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">{appointment.start.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {appointment.end.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{formatTime(appointment.start.toDate())} - {formatTime(appointment.end.toDate())}</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">{appointment.treatmentName}</p>
             </div>
             <div className="text-right">
@@ -75,9 +70,11 @@ const AppointmentCard: React.FC<{ appointment: Appointment, patient?: PatientDoc
                     <Button variant="light" size="sm" onClick={handleViewPatient} disabled={!patient}>
                         View Patient
                     </Button>
-                    <Button variant={hasConsultation || isFinished ? "light" : "primary"} size="sm" onClick={handleAction} disabled={isFinished}>
-                        {buttonText} <FontAwesomeIcon icon={faArrowRight} className="ml-2"/>
-                    </Button>
+                    
+                        <Button variant={hasConsultation || isFinished ? "light" : "primary"} size="sm" onClick={handleConsultationAction} disabled={isFinished}>
+                            {buttonText} <FontAwesomeIcon icon={faArrowRight} className="ml-2"/>
+                        </Button>
+                    
                 </div>
             </div>
         </div>
@@ -85,9 +82,12 @@ const AppointmentCard: React.FC<{ appointment: Appointment, patient?: PatientDoc
 };
 
 
+import { useFormatting } from '@/utils/formatting';
+
 const DoctorDashboard: React.FC = () => {
     const { user, patients } = useAuth();
     const { theme } = useTheme();
+    const { formatDate, formatTime, formatCurrency } = useFormatting();
     const [loading, setLoading] = useState(true);
 
     const tickColor = theme === 'dark' ? '#94a3b8' : '#64748b'; // slate-400 dark, slate-500 light
@@ -155,10 +155,10 @@ const DoctorDashboard: React.FC = () => {
                 const dailyCounts: {[key: string]: number} = {};
                 for(let i=0; i<7; i++) {
                     const day = new Date(last7DaysStart); day.setDate(last7DaysStart.getDate() + i);
-                    dailyCounts[day.toLocaleDateString('en-US', { weekday: 'short' })] = 0;
+                    dailyCounts[formatDate(day, 'ddd')] = 0;
                 }
                 doc7DaysApps.forEach(app => {
-                    const dayString = app.start.toDate().toLocaleDateString('en-US', { weekday: 'short' });
+                    const dayString = formatDate(app.start.toDate(), 'ddd');
                     if(dailyCounts.hasOwnProperty(dayString)) dailyCounts[dayString]++;
                 });
                 setAppointmentOverviewData(Object.entries(dailyCounts).map(([name, count]) => ({ name, appointments: count })));
@@ -233,7 +233,7 @@ const DoctorDashboard: React.FC = () => {
         <div className="p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 min-h-full">
             <div>
                 <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">{getGreeting()}, Dr. {user?.name || 'Doctor'}!</h1>
-                <p className="text-slate-500 dark:text-slate-400 mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                <p className="text-slate-500 dark:text-slate-400 mt-1">{formatDate(new Date())}</p>
             </div>
 
             {/* 1. Today at a Glance */}
@@ -241,7 +241,7 @@ const DoctorDashboard: React.FC = () => {
                 <StatCard title="Appointments Today" value={stats.appointments} icon={faCalendarCheck} color="bg-blue-500" />
                 <StatCard title="Completed Today" value={stats.completed} icon={faStethoscope} color="bg-green-500" />
                 <StatCard title="Pending" value={stats.pending} icon={faHourglassHalf} color="bg-yellow-500" />
-                <StatCard title="Today's Earnings" value={formatCurrency(stats.earnings, user?.hospitalCurrency)} icon={faFileInvoiceDollar} color="bg-indigo-500" />
+                <StatCard title="Today's Earnings" value={formatCurrency(stats.earnings)} icon={faFileInvoiceDollar} color="bg-indigo-500" />
             </div>
 
             <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -253,7 +253,7 @@ const DoctorDashboard: React.FC = () => {
                             todaysAppointments.map((app, index) => {
                                 const hasConsultation = consultations.some(c => c.appointmentId === app.id);
                                 return (
-                                <AppointmentCard key={app.id} appointment={app} patient={patientsMap.get(app.patientId)} isNext={index === nextAppointmentIndex} hasConsultation={hasConsultation} />
+                                <AppointmentCard key={app.id} appointment={app} patient={patientsMap.get(app.patientId)} isNext={index === nextAppointmentIndex} hasConsultation={hasConsultation} formatTime={formatTime} />
                             )})
                         ) : (
                             <div className="text-center py-16 text-slate-500">No appointments scheduled for today.</div>
@@ -285,8 +285,8 @@ const DoctorDashboard: React.FC = () => {
                                     <Pie data={earningsByTreatmentData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>
                                         {earningsByTreatmentData.map((entry, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
                                     </Pie>
-                                    <Tooltip formatter={(value: number) => formatCurrency(value, user?.hospitalCurrency)} wrapperClassName="dark:!bg-slate-800 dark:!border-slate-700" contentStyle={{ backgroundColor: 'var(--tw-bg-white)', borderRadius: '0.5rem', border: '1px solid var(--tw-border-slate-200)' }} />
-                                    <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" className="text-2xl font-bold fill-slate-800 dark:fill-white">{formatCurrency(totalMonthlyEarnings, user?.hospitalCurrency)}</text>
+                                    <Tooltip formatter={(value: number) => formatCurrency(value)} wrapperClassName="dark:!bg-slate-800 dark:!border-slate-700" contentStyle={{ backgroundColor: 'var(--tw-bg-white)', borderRadius: '0.5rem', border: '1px solid var(--tw-border-slate-200)' }} />
+                                    <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" className="text-2xl font-bold fill-slate-800 dark:fill-white">{formatCurrency(totalMonthlyEarnings)}</text>
                                 </PieChart>
                             </ResponsiveContainer>
                         </div>

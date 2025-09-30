@@ -26,18 +26,12 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
         const snapshot = await q.get();
         let stocks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StockItem));
 
-        let locationId = locationIdFilter;
-        if (user.roleName !== 'owner' && user.roleName !== 'admin' && user.currentLocation) {
-            locationId = user.currentLocation.id;
-        }
-
-        if (locationId && locationId !== 'all') {
-            stocks = stocks.filter(stock => stock.locationStock?.[locationId]?.totalStock > 0);
+        if (locationIdFilter && locationIdFilter !== 'all') {
+            stocks = stocks.filter(stock => stock.locationStock?.[locationIdFilter]);
         }
         
         return stocks.sort((a, b) => a.name.localeCompare(b.name));
     }, [user]);
-
     const getStockItemById = useCallback(async (stockId: string): Promise<StockItem | null> => {
         if (!user) return null;
         const doc = await db.collection('stocks').doc(stockId).get();
@@ -78,7 +72,7 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
                     const newBatches: StockBatch[] = [];
                     let totalStock = 0;
     
-                    if (locData.initialBatch && locData.initialBatch.quantity > 0) {
+                    if (locData.initialBatch) {
                         const batchData = locData.initialBatch;
                         const newBatch: StockBatch = {
                             id: db.collection('_').doc().id,
@@ -153,10 +147,10 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
         const oldPhotoUrl = existingStock.photoUrl;
 
         if (photo === null && oldPhotoUrl) {
-            await storage.refFromURL(oldPhotoUrl).delete().catch(console.error);
+            await storage.refFromURL(oldPhotoUrl).delete().catch(() => {}); // Replace console.error with empty catch
             updateData.photoUrl = '';
         } else if (photo) {
-            if (oldPhotoUrl) await storage.refFromURL(oldPhotoUrl).delete().catch(console.error);
+            if (oldPhotoUrl) await storage.refFromURL(oldPhotoUrl).delete().catch(() => {}); // Replace console.error with empty catch
             let photoToUpload: Blob;
             if (typeof photo === 'string') {
                 photoToUpload = await (await fetch(photo)).blob();
@@ -512,7 +506,6 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
                 t.update(locationRef, { lastStockOrderNumber: increment(1) });
             });
         } catch (e: any) {
-            console.error("Stock order creation failed", e);
             throw new Error(e.message || "Could not create stock order.");
         }
     }, [user, uploadFile]);
@@ -904,7 +897,6 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
                 t.update(locationRef, { lastStockReturnNumber: increment(1) });
             });
         } catch (e: any) {
-            console.error("Stock return failed", e);
             throw new Error(e.message || "Could not process stock return.");
         }
     }, [user]);
@@ -1051,10 +1043,10 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
         }
         
         if (photo === null) {
-            if (existingData.photoUrl) await storage.refFromURL(existingData.photoUrl).delete().catch(console.error);
+            if (existingData.photoUrl) await storage.refFromURL(existingData.photoUrl).delete().catch(() => {}); // Replace console.error with empty catch
             updateData.photoUrl = '';
         } else if (photo) {
-            if (existingData.photoUrl) await storage.refFromURL(existingData.photoUrl).delete().catch(console.error);
+            if (existingData.photoUrl) await storage.refFromURL(existingData.photoUrl).delete().catch(() => {}); // Replace console.error with empty catch
             let photoToUpload: Blob;
             if (typeof photo === 'string') photoToUpload = await (await fetch(photo)).blob();
             else photoToUpload = photo;
@@ -1089,10 +1081,10 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
         if (!docSnap.exists) return;
         const data = docSnap.data() as Peripheral;
 
-        if (data.photoUrl) await storage.refFromURL(data.photoUrl).delete().catch(console.error);
+        if (data.photoUrl) await storage.refFromURL(data.photoUrl).delete().catch(() => {}); // Replace console.error with empty catch
         if (data.attachments && data.attachments.length > 0) {
             for (const attachment of data.attachments) {
-                await storage.refFromURL(attachment.url).delete().catch(console.error);
+                await storage.refFromURL(attachment.url).delete().catch(() => {}); // Replace console.error with empty catch
             }
         }
         await peripheralRef.delete();

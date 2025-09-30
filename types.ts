@@ -95,20 +95,8 @@ export interface InvoiceSettingsData {
   posInvoice: IndividualInvoiceSettings;
 }
 
-export type EmailProvider = 'default' | 'smtp' | 'sendgrid' | 'mailgun';
-
-export interface SMTPSettings {
-    server: string;
-    port: number;
-    username: string;
-    password?: string;
-    encryption: 'none' | 'ssl_tls' | 'starttls';
-}
-
 export interface EmailSettings {
-    provider: EmailProvider;
     fromEmail: string;
-    smtp?: SMTPSettings;
     apiKey?: string;
 }
 
@@ -144,7 +132,6 @@ export interface Hospital {
   lastInvoiceNumber?: number;
   lastStockOrderNumber?: number;
   lastStockReturnNumber?: number;
-  lastExpenseNumber?: number;
   lastPOSSaleNumber?: number;
   lastVendorNumber?: number;
   lastEmployeeNumber?: number;
@@ -338,6 +325,7 @@ export interface PatientUpdateData {
 }
 
 export type AppointmentStatus = 'Registered' | 'Finished' | 'Encounter' | 'Waiting Payment' | 'Cancelled' | 'No Show';
+export type ConsultationType = 'direct' | 'online';
 
 export interface Appointment {
   id: string;
@@ -350,6 +338,8 @@ export interface Appointment {
   treatmentName: string;
   status: AppointmentStatus;
   hospitalId: string;
+  consultationType: ConsultationType;
+  meetingStarted?: boolean; // New field to track if the meeting has been started by a doctor
   // FIX: Added missing locationId property to Appointment type.
   locationId: string;
 }
@@ -361,6 +351,7 @@ export interface NewAppointmentData {
     end: Date;
     treatmentName: string; // From Treatment document `name`
     status: AppointmentStatus;
+    consultationType: ConsultationType;
 }
 
 
@@ -634,6 +625,7 @@ export interface NewExpenseData {
   isRecurring?: boolean;
   recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
   paymentTerms?: number;
+  locationId?: string;
 }
 
 export interface ExpenseUpdateData {
@@ -1298,7 +1290,20 @@ export interface NewLoanData extends Omit<Loan, 'id' | 'hospitalId' | 'loanId' |
 
 export interface HospitalLocation {
     id: string;
+    name: string;
+    address: Address;
+    phone: string;
+    email?: string;
     status: 'active' | 'inactive';
+    code?: string;
+    lastInvoiceNumber?: number;
+    lastPOSSaleNumber?: number;
+    lastExpenseNumber?: number;
+    lastStockOrderNumber?: number;
+    lastStockReturnNumber?: number;
+    lastStockTransferNumber?: number;
+    lastEmployeeNumber?: number;
+    lastLoanNumber?: number;
 }
 
 export interface NewHospitalLocationData {

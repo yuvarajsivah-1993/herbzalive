@@ -59,14 +59,15 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ label, options, selectedValue
               selectedOptions.map(option => (
                 <div key={option.value} className="flex items-center bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-sm font-medium px-2.5 py-1 rounded-full">
                   <span>{option.label}</span>
-                  <button
-                    type="button"
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => { e.stopPropagation(); removeOption(option.value); }}
-                    className="ml-2 -mr-1 flex-shrink-0 h-4 w-4 rounded-full inline-flex items-center justify-center text-blue-500 hover:bg-blue-200 dark:hover:bg-blue-800 hover:text-blue-600 focus:outline-none"
-                    disabled={disabled}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); removeOption(option.value); } }}
+                    className="ml-2 -mr-1 flex-shrink-0 h-4 w-4 rounded-full inline-flex items-center justify-center text-blue-500 hover:bg-blue-200 dark:hover:bg-blue-800 hover:text-blue-600 focus:outline-none cursor-pointer"
                   >
                     <FontAwesomeIcon icon={faTimes} className="h-3 w-3" />
-                  </button>
+                  </span>
                 </div>
               ))
             ) : (

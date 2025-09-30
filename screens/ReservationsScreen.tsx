@@ -7,14 +7,28 @@ import Select from '../components/ui/Select';
 import Input from '../components/ui/Input';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-    faCalendar, faChevronLeft, faChevronRight, faFilter, faTimes,
-    faCheckCircle, faClock, faTimesCircle, faUserMd, faHourglassHalf, faSearch,
-    faPencilAlt, faTrashAlt, faFileMedical, faUser, faList, faTh
+    faCalendar, 
+    faChevronLeft, 
+    faChevronRight, 
+    faFilter, 
+    faTimes,
+    faCheckCircle, 
+    faClock, 
+    faTimesCircle, 
+    faUserMd, 
+    faHourglassHalf, 
+    faSearch,
+    faPencilAlt, 
+    faTrashAlt, 
+    faFileMedical, 
+    faUser, 
+    faList, 
+    faTh
 } from '@fortawesome/free-solid-svg-icons';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { useToast } from '../hooks/useToast';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import Pagination from '../components/ui/Pagination';
 import DateRangePicker from '../components/ui/DateRangePicker';
@@ -147,6 +161,7 @@ const AddAppointmentModal: React.FC<{
     const [selectedTreatmentId, setSelectedTreatmentId] = useState('');
     const [startTime, setStartTime] = useState<Date>(new Date());
     const [endTime, setEndTime] = useState<Date>(new Date());
+    const [consultationType, setConsultationType] = useState<'direct' | 'online'>('direct');
     
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -175,6 +190,7 @@ const AddAppointmentModal: React.FC<{
             setEndTime(appointmentData.start);
             setSelectedTreatmentId('');
             setSelectedPatientId('');
+            setConsultationType('direct');
             setError('');
         }
     }, [isOpen, appointmentData]);
@@ -194,7 +210,7 @@ const AddAppointmentModal: React.FC<{
         if (!treatment) { setError('Selected treatment not found.'); return; }
         setLoading(true); setError('');
         try {
-            await addAppointment({ patientId: selectedPatientId, doctorId: appointmentData.doctor.id!, start: startTime, end: endTime, treatmentName: treatment.name, status: 'Registered' });
+            await addAppointment({ patientId: selectedPatientId, doctorId: appointmentData.doctor.id!, start: startTime, end: endTime, treatmentName: treatment.name, status: 'Registered', consultationType });
             addToast('Appointment created successfully!', 'success'); onAdd(); onClose();
         } catch (err: any) {
             const msg = err.message || 'Failed to create appointment.'; setError(msg); addToast(msg, 'error');
@@ -216,6 +232,10 @@ const AddAppointmentModal: React.FC<{
                         <Input label="Start Time" id="start-time" type="time" value={startTime.toTimeString().substring(0,5)} onChange={e => { const newStart = new Date(startTime); const [h, m] = e.target.value.split(':'); newStart.setHours(Number(h), Number(m)); setStartTime(newStart); }} />
                         <Input label="End Time" id="end-time" type="time" value={endTime.toTimeString().substring(0,5)} readOnly disabled />
                     </div>
+                    <Select label="Consultation Type" value={consultationType} onChange={e => setConsultationType(e.target.value as 'direct' | 'online')}>
+                        <option value="direct">Direct Visit</option>
+                        <option value="online">Online Consultation</option>
+                    </Select>
                 </div>
                 <div className="flex justify-end space-x-3 p-6 bg-slate-50 dark:bg-slate-950/50 border-t"><Button type="button" variant="light" onClick={onClose}>Cancel</Button><Button type="submit" variant="primary" disabled={loading}>{loading ? 'Scheduling...' : 'Schedule Appointment'}</Button></div>
             </form></div>
@@ -226,7 +246,7 @@ const AddAppointmentModal: React.FC<{
 const EditAppointmentModal: React.FC<{
   isOpen: boolean; onClose: () => void; onUpdate: () => void; appointment: Appointment | null; onDeleteRequest: (appointment: Appointment) => void;
 }> = ({ isOpen, onClose, onUpdate, appointment, onDeleteRequest }) => {
-    const { patients: allPatientsFromContext, treatments: allTreatmentsFromContext, getDoctorById, updateAppointment } = useAuth();
+    const { patients: allPatientsFromContext, treatments: allTreatmentsFromContext, getDoctorById, updateAppointment, currentLocation } = useAuth();
     const [doctor, setDoctor] = useState<DoctorDocument | null>(null);
     
     const [selectedPatientId, setSelectedPatientId] = useState('');
@@ -234,6 +254,7 @@ const EditAppointmentModal: React.FC<{
     const [startTime, setStartTime] = useState<Date>(new Date());
     const [endTime, setEndTime] = useState<Date>(new Date());
     const [status, setStatus] = useState<AppointmentStatus>('Registered');
+    const [consultationType, setConsultationType] = useState<'direct' | 'online'>('direct');
     
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isFetchingData, setIsFetchingData] = useState(false);
@@ -248,7 +269,13 @@ const EditAppointmentModal: React.FC<{
     }, [isOpen, onClose]);
 
     const doctorTreatments = useMemo(() => doctor ? allTreatmentsFromContext.filter(t => t.id && doctor.assignedTreatments.includes(t.id)) : [], [allTreatmentsFromContext, doctor]);
-    const patientOptions = useMemo((): SearchableOption[] => allPatientsFromContext.map(p => ({ value: p.id, label: p.name, secondaryLabel: `ID: ${p.patientId}`, searchableText: `${p.name} ${p.patientId} ${p.phone}` })), [allPatientsFromContext]);
+    
+    const activePatients = useMemo(() => {
+        if (!currentLocation) return allPatientsFromContext.filter(p => p.status === 'active');
+        return allPatientsFromContext.filter(p => p.status === 'active' && p.locationId === currentLocation.id);
+    }, [allPatientsFromContext, currentLocation]);
+
+    const patientOptions = useMemo((): SearchableOption[] => activePatients.map(p => ({ value: p.id, label: p.name, secondaryLabel: `ID: ${p.patientId}`, searchableText: `${p.name} ${p.patientId} ${p.phone}` })), [activePatients]);
     const treatmentOptions = useMemo((): SearchableOption[] => doctorTreatments.map(t => ({ value: t.id!, label: t.name, secondaryLabel: `${t.duration} min` })), [doctorTreatments]);
     
     useEffect(() => {
@@ -265,6 +292,7 @@ const EditAppointmentModal: React.FC<{
                 setStartTime(appointment.start.toDate());
                 setEndTime(appointment.end.toDate());
                 setStatus(appointment.status);
+                setConsultationType(appointment.consultationType || 'direct');
             })
             .catch(() => addToast('Failed to load doctor data.', 'error'))
             .finally(() => setIsFetchingData(false));
@@ -286,7 +314,7 @@ const EditAppointmentModal: React.FC<{
         if (!treatment) { setError('Selected treatment not found.'); return; }
         setIsSubmitting(true); setError('');
         try {
-            await updateAppointment(appointment.id, { patientId: selectedPatientId, doctorId: appointment.doctorId, start: startTime, end: endTime, treatmentName: treatment.name, status });
+            await updateAppointment(appointment.id, { patientId: selectedPatientId, doctorId: appointment.doctorId, start: startTime, end: endTime, treatmentName: treatment.name, status, consultationType });
             addToast('Appointment updated successfully!', 'success'); onUpdate(); onClose();
         } catch (err: any) {
             const msg = err.message || 'Failed to update appointment.'; setError(msg); addToast(msg, 'error');
@@ -307,6 +335,10 @@ const EditAppointmentModal: React.FC<{
                         <Input label="Start Time" id="start-time" type="time" value={startTime.toTimeString().substring(0,5)} onChange={e => { const newStart = new Date(startTime); const [h, m] = e.target.value.split(':'); newStart.setHours(Number(h), Number(m)); setStartTime(newStart); }} disabled={isFetchingData} />
                         <Input label="End Time" id="end-time" type="time" value={endTime.toTimeString().substring(0,5)} readOnly disabled />
                     </div>
+                    <Select label="Consultation Type" value={consultationType} onChange={e => setConsultationType(e.target.value as 'direct' | 'online')}>
+                        <option value="direct">Direct Visit</option>
+                        <option value="online">Online Consultation</option>
+                    </Select>
                     <Select label="Status" id="status" value={status} onChange={e => setStatus(e.target.value as AppointmentStatus)} disabled={isFetchingData}>
                         <option value="Registered">Registered</option>
                         <option value="Cancelled">Cancelled</option>
@@ -336,8 +368,11 @@ const AppointmentCard: React.FC<{ appointment: Appointment, onClick: (e: React.M
 
     return (
         <div onClick={onClick} onContextMenu={onContextMenu} className={`absolute w-[95%] left-[2.5%] p-2 rounded-lg border-l-4 ${style.color} overflow-hidden shadow-sm cursor-pointer hover:ring-2 hover:ring-blue-500 dark:hover:ring-blue-400 transition-shadow`} style={{ top: `${top}px`, height: `${height}px`, minHeight: '40px' }}>
-            <div className="flex flex-col h-full text-xs"><div className="flex justify-between items-start">
-                    <p className="font-semibold truncate">{appointment.patientName}</p>
+            <div className="flex flex-col h-full text-xs">
+                <div className="flex justify-between items-start">
+                    <p className="font-semibold truncate">
+                        {appointment.patientName}
+                    </p>
                     <div className="flex items-center flex-shrink-0"><FontAwesomeIcon icon={style.icon} className="mr-1" /><span>{style.label}</span></div>
                 </div>
                 <p className="opacity-80">{formatTime(start)} &gt; {formatTime(end)}</p>
@@ -517,7 +552,6 @@ const AppointmentList: React.FC<{
 
 const ReservationsScreen: React.FC = () => {
     const { user, deleteAppointment, doctors: allDoctors, patients: allPatients, currentLocation } = useAuth();
-    console.log("ReservationsScreen - currentLocation (initial):", currentLocation);
     const { addToast } = useToast();
     const navigate = useNavigate();
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -579,7 +613,6 @@ const ReservationsScreen: React.FC = () => {
             setAppointments(appointmentData);
             setLoading(false);
         }, (error) => {
-            console.error("Error fetching appointments:", error);
             addToast("Failed to load calendar data.", "error");
             setLoading(false);
         });
@@ -690,7 +723,7 @@ const ReservationsScreen: React.FC = () => {
         try {
             await deleteAppointment(confirmDeleteModal.id);
             addToast('Appointment deleted successfully!', 'success');
-        } catch (err) { addToast('Failed to delete appointment.', 'error'); console.error(err); } 
+        } catch (err) { addToast('Failed to delete appointment.', 'error'); } 
         finally { setIsDeleting(false); setConfirmDeleteModal(null); }
     };
 
@@ -713,10 +746,19 @@ const ReservationsScreen: React.FC = () => {
         }
     };
 
-    const handleAppointmentContextMenu = (e: React.MouseEvent, appointment: Appointment) => {
+    const handleAppointmentContextMenu = async (e: React.MouseEvent, appointment: Appointment) => {
         if (['Encounter', 'Waiting Payment', 'Finished'].includes(appointment.status)) { e.preventDefault(); return; }
         e.preventDefault(); e.stopPropagation();
-        setContextMenu({ x: e.pageX, y: e.pageY, appointment });
+
+        let currentAppointment = appointment;
+        if (appointment.consultationType === 'online' && user?.roleName === 'patient') {
+            // Fetch latest appointment data to check meetingStarted status
+            const latestAppt = await getAppointmentById(appointment.id);
+            if (latestAppt) {
+                currentAppointment = latestAppt;
+            }
+        }
+        setContextMenu({ x: e.pageX, y: e.pageY, appointment: currentAppointment });
     };
 
     const handleDoctorFilterChange = (doctorId: string) => setSelectedDoctorIds(prev => prev.includes(doctorId) ? prev.filter(id => id !== doctorId) : [...prev, doctorId]);

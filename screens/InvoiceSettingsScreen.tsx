@@ -120,13 +120,12 @@ interface InvoiceProps {
   invoice: InvoiceForPreview;
   type: 'Treatment' | 'POS';
   footerText: string;
+  formatDate: (date: Date) => string;
+  formatTime: (date: Date) => string;
+  formatCurrency: (amount: number) => string;
 }
 
-const currencySymbols: { [key: string]: string } = { USD: '$', EUR: '€', GBP: '£', INR: '₹' };
-const formatCurrency = (amount: number, currencyCode: string = 'INR') => {
-    const symbol = currencySymbols[currencyCode] || '₹';
-    return `${symbol}${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+
 
 // A4 Designs (210mm x 297mm)
 const A4Wrapper: React.FC<{children: React.ReactNode, className?: string}> = ({ children, className }) => (
@@ -135,11 +134,11 @@ const A4Wrapper: React.FC<{children: React.ReactNode, className?: string}> = ({ 
     </div>
 );
 
-export const ModernInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText }) => {
+export const ModernInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText, formatDate, formatTime, formatCurrency }) => {
     const grandTotal = invoice.totalAmount ?? 0;
     const paid = invoice.amountPaid ?? 0;
     const due = grandTotal - paid;
-    const paymentMethods = invoice.paymentHistory?.map(p => `${p.method} (${formatCurrency(p.amount, hospital.currency)})`).join(', ');
+    const paymentMethods = invoice.paymentHistory?.map(p => `${p.method} (${formatCurrency(p.amount)})`).join(', ');
     const fullHospitalAddress = [ hospital.address?.street, hospital.address?.city, hospital.address?.state, hospital.address?.country ].filter(Boolean).join(', ') + (hospital.address?.pincode ? ` - ${hospital.address.pincode}` : '');
 
 
@@ -176,8 +175,8 @@ export const ModernInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoi
                                 <p className="text-gray-800 print:text-black">{patient.phone}</p>
                             </div>
                             <div className="text-right text-gray-800 print:text-black">
-                                <p><strong className="text-gray-800 print:text-black">Invoice Date:</strong> {invoice.createdAt?.toDate().toLocaleDateString()}</p>
-                                <p><strong className="text-gray-800 print:text-black">Due Date:</strong> {invoice.createdAt?.toDate().toLocaleDateString()}</p>
+                                <p><strong className="text-gray-800 print:text-black">Invoice Date:</strong> {invoice.createdAt?.toDate() ? formatDate(invoice.createdAt.toDate()) : 'N/A'}</p>
+                                <p><strong className="text-gray-800 print:text-black">Due Date:</strong> {invoice.createdAt?.toDate() ? formatDate(invoice.createdAt.toDate()) : 'N/A'}</p>
                             </div>
                         </section>
                         <table className="w-full text-left">
@@ -209,10 +208,10 @@ export const ModernInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoi
                                                     <td className="p-2 text-[11px]">{item.hsnCode}</td>
                                                     <td className="p-2 text-[11px]">{item.batchNumber}<br/>{item.expiryDate}</td>
                                                     <td className="p-2 text-center text-[11px]">{item.quantity}</td>
-                                                    <td className="p-2 text-right text-[11px]">{formatCurrency(item.salePrice || 0, hospital.currency)}</td>
-                                                    <td className="p-2 text-right text-[11px]">{formatCurrency(lineTax, hospital.currency)}<br/><span className="text-[9px] text-gray-500">{item.taxName}</span></td>
-                                                    <td className="p-2 text-right text-[11px]">{formatCurrency(lineDiscount, hospital.currency)}</td>
-                                                    <td className="p-2 text-right font-semibold text-[11px]">{formatCurrency(lineTotal, hospital.currency)}</td>
+                                                    <td className="p-2 text-right text-[11px]">{formatCurrency(item.salePrice || 0)}</td>
+                                                    <td className="p-2 text-right text-[11px]">{formatCurrency(lineTax)}<br/><span className="text-[9px] text-gray-500">{item.taxName}</span></td>
+                                                    <td className="p-2 text-right text-[11px]">{formatCurrency(lineDiscount)}</td>
+                                                    <td className="p-2 text-right font-semibold text-[11px]">{formatCurrency(lineTotal)}</td>
                                                 </tr>
                                             )
                                         })}
@@ -225,7 +224,7 @@ export const ModernInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoi
                                     </thead>
                                     <tbody className="text-gray-900 print:text-black">
                                         {invoice.items?.map((item, i) => (
-                                            <tr key={i} className="border-b"><td className="p-3">{item.description || item.name}</td><td className="p-3 text-center">{item.quantity || 1}</td><td className="p-3 text-right">{formatCurrency(item.cost || item.salePrice || 0, hospital.currency)}</td><td className="p-3 text-right">{formatCurrency(((item.cost || item.salePrice) || 0) * (item.quantity || 1), hospital.currency)}</td></tr>
+                                            <tr key={i}><td className="p-3">{item.description || item.name}</td><td className="p-3 text-center">{item.quantity || 1}</td><td className="p-3 text-right">{formatCurrency(item.cost || item.salePrice || 0)}</td><td className="p-3 text-right">{formatCurrency(((item.cost || item.salePrice) || 0) * (item.quantity || 1))}</td></tr>
                                         ))}
                                     </tbody>
                                 </>
@@ -244,23 +243,23 @@ export const ModernInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoi
                             <div className="text-right">
                                 {type === 'POS' ? (
                                     <>
-                                        <div className="flex justify-between text-gray-800 print:text-black"><p>Gross Total:</p><p className="text-gray-900 print:text-black">{formatCurrency(invoice.grossTotal || 0, hospital.currency)}</p></div>
-                                        <div className="flex justify-between mt-2 text-gray-800 print:text-black"><p>Total Tax:</p><p className="text-gray-900 print:text-black">{formatCurrency((invoice as POSSale).taxAmount || 0, hospital.currency)}</p></div>
-                                        <div className="flex justify-between mt-2 text-gray-800 font-semibold print:text-black"><p>Subtotal:</p><p className="text-gray-900 print:text-black">{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0), hospital.currency)}</p></div>
-                                        {(invoice.totalItemDiscount || 0) > 0 && <div className="flex justify-between mt-2 text-green-600"><p>Item Discounts:</p><p className="text-green-600">- {formatCurrency(invoice.totalItemDiscount || 0, hospital.currency)}</p></div>}
-                                        {(invoice.overallDiscount || 0) > 0 && <div className="flex justify-between mt-2 text-green-600"><p>Overall Discount:</p><p className="text-green-600">- {formatCurrency(invoice.overallDiscount || 0, hospital.currency)}</p></div>}
+                                        <div className="flex justify-between text-gray-800 print:text-black"><p>Gross Total:</p><p className="text-gray-900 print:text-black">{formatCurrency(invoice.grossTotal || 0)}</p></div>
+                                        <div className="flex justify-between mt-2 text-gray-800 print:text-black"><p>Total Tax:</p><p className="text-gray-900 print:text-black">{formatCurrency((invoice as POSSale).taxAmount || 0)}</p></div>
+                                        <div className="flex justify-between mt-2 text-gray-800 font-semibold print:text-black"><p>Subtotal:</p><p className="text-gray-900 print:text-black">{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0))}</p></div>
+                                        {(invoice.totalItemDiscount || 0) > 0 && <div className="flex justify-between mt-2 text-green-600"><p>Item Discounts:</p><p className="text-green-600">- {formatCurrency(invoice.totalItemDiscount || 0)}</p></div>}
+                                        {(invoice.overallDiscount || 0) > 0 && <div className="flex justify-between mt-2 text-green-600"><p>Overall Discount:</p><p className="text-green-600">- {formatCurrency(invoice.overallDiscount || 0)}</p></div>}
                                     </>
                                 ) : (
                                     <>
-                                        <div className="flex justify-between text-gray-800 print:text-black"><p>Subtotal:</p><p className="text-gray-900 print:text-black">{formatCurrency(invoice.subtotal || 0, hospital.currency)}</p></div>
+                                        <div className="flex justify-between text-gray-800 print:text-black"><p>Subtotal:</p><p className="text-gray-900 print:text-black">{formatCurrency(invoice.subtotal || 0)}</p></div>
                                         {(invoice.taxes || []).map((t, i) => (
-                                            <div key={i} className="flex justify-between mt-2 text-gray-800 print:text-black"><p>{t.name} ({t.rate}%):</p><p className="text-gray-900 print:text-black">{formatCurrency(t.amount, hospital.currency)}</p></div>
+                                            <div key={i} className="flex justify-between mt-2 text-gray-800 print:text-black"><p>{t.name} ({t.rate}%):</p><p className="text-gray-900 print:text-black">{formatCurrency(t.amount)}</p></div>
                                         ))}
                                     </>
                                 )}
-                                <div className="flex justify-between font-bold text-lg mt-4 pt-4 border-t text-gray-900 print:text-black"><p>Grand Total:</p><p>{formatCurrency(grandTotal, hospital.currency)}</p></div>
-                                <div className="flex justify-between mt-2 text-gray-800 print:text-black"><p>Amount Paid:</p><p className="text-gray-900 print:text-black">{formatCurrency(paid, hospital.currency)}</p></div>
-                                <div className="flex justify-between font-bold text-xl mt-4 pt-4 border-t text-red-600"><p>Amount Due:</p><p>{formatCurrency(due, hospital.currency)}</p></div>
+                                <div className="flex justify-between font-bold text-lg mt-4 pt-4 border-t text-gray-900 print:text-black"><p>Grand Total:</p><p>{formatCurrency(grandTotal)}</p></div>
+                                <div className="flex justify-between mt-2 text-gray-800 print:text-black"><p>Amount Paid:</p><p className="text-gray-900 print:text-black">{formatCurrency(paid)}</p></div>
+                                <div className="flex justify-between font-bold text-xl mt-4 pt-4 border-t text-red-600"><p>Amount Due:</p><p>{formatCurrency(due)}</p></div>
                             </div>
                         </section>
                         <div className="pt-20">
@@ -294,7 +293,7 @@ export const ModernInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoi
     )
 };
 
-export const ClassicInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText }) => {
+export const ClassicInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText, formatDate, formatTime, formatCurrency }) => {
     const grandTotal = invoice.totalAmount ?? 0;
     const paid = invoice.amountPaid ?? 0;
     const due = grandTotal - paid;
@@ -331,30 +330,30 @@ export const ClassicInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invo
                             </div>
                             <div className="text-right">
                                 <p><strong className="text-gray-800 print:text-black">Invoice #</strong> {invoice.invoiceId || invoice.saleId}</p>
-                                <p><strong className="text-gray-800 print:text-black">Date:</strong> {invoice.createdAt?.toDate().toLocaleDateString()}</p>
+                                <p><strong className="text-gray-800 print:text-black">Date:</strong> {invoice.createdAt?.toDate() ? formatDate(invoice.createdAt.toDate()) : 'N/A'}</p>
                             </div>
                         </section>
                         <table className="w-full text-left">
                             <thead><tr><th className="p-3 pb-4 font-semibold text-gray-900 print:text-black border-b-2 border-gray-700">Description</th><th className="p-3 pb-4 font-semibold text-gray-900 print:text-black border-b-2 border-gray-700 text-right">Total</th></tr></thead>
-                            <tbody className="text-gray-900 print:text-black">{invoice.items?.map((item, i) => (<tr key={i}><td className="p-3 border-b border-gray-200">{item.description || item.name}</td><td className="p-3 border-b border-gray-200 text-right">{formatCurrency(((item.cost || item.salePrice) || 0) * (item.quantity || 1), hospital.currency)}</td></tr>))}</tbody>
+                            <tbody className="text-gray-900 print:text-black">{invoice.items?.map((item, i) => (<tr key={i}><td className="p-3 border-b border-gray-200">{item.description || item.name}</td><td className="p-3 border-b border-gray-200 text-right">{formatCurrency(((item.cost || item.salePrice) || 0) * (item.quantity || 1))}</td></tr>))}</tbody>
                             <tfoot className="text-gray-800 print:text-black">
                                 {type === 'POS' ? (
                                     <>
-                                        <tr><td className="p-3 pt-6 text-right">Gross Total</td><td className="p-3 pt-6 text-right">{formatCurrency(invoice.grossTotal || 0, hospital.currency)}</td></tr>
-                                        <tr><td className="p-3 text-right">Total Tax</td><td className="p-3 text-right">{formatCurrency((invoice as POSSale).taxAmount || 0, hospital.currency)}</td></tr>
-                                        <tr><td className="p-3 font-semibold text-right">Subtotal</td><td className="p-3 font-semibold text-right">{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0), hospital.currency)}</td></tr>
-                                        {(invoice.totalItemDiscount || 0) > 0 && <tr><td className="p-3 text-green-600 text-right">Item Discounts</td><td className="p-3 text-green-600 text-right">- {formatCurrency(invoice.totalItemDiscount || 0, hospital.currency)}</td></tr>}
-                                        {(invoice.overallDiscount || 0) > 0 && <tr><td className="p-3 text-green-600 text-right">Overall Discount</td><td className="p-3 text-green-600 text-right">- {formatCurrency(invoice.overallDiscount || 0, hospital.currency)}</td></tr>}
+                                        <tr><td className="p-3 pt-6 text-right">Gross Total</td><td className="p-3 pt-6 text-right">{formatCurrency(invoice.grossTotal || 0)}</td></tr>
+                                        <tr><td className="p-3 text-right">Total Tax</td><td className="p-3 text-right">{formatCurrency((invoice as POSSale).taxAmount || 0)}</td></tr>
+                                        <tr><td className="p-3 font-semibold text-right">Subtotal</td><td className="p-3 font-semibold text-right">{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0))}</td></tr>
+                                        {(invoice.totalItemDiscount || 0) > 0 && <tr><td className="p-3 text-green-600 text-right">Item Discounts</td><td className="p-3 text-green-600 text-right">- {formatCurrency(invoice.totalItemDiscount || 0)}</td></tr>}
+                                        {(invoice.overallDiscount || 0) > 0 && <tr><td className="p-3 text-green-600 text-right">Overall Discount</td><td className="p-3 text-green-600 text-right">- {formatCurrency(invoice.overallDiscount || 0)}</td></tr>}
                                     </>
                                 ) : (
                                     <>
-                                        <tr><td className="p-3 pt-6 text-right">Subtotal</td><td className="p-3 pt-6 text-right">{formatCurrency(invoice.subtotal || 0, hospital.currency)}</td></tr>
-                                        {(invoice.taxes || []).map((t, i) => (<tr key={i}><td className="p-3 text-right">{t.name} ({t.rate}%)</td><td className="p-3 text-right">{formatCurrency(t.amount, hospital.currency)}</td></tr>))}
+                                        <tr><td className="p-3 pt-6 text-right">Subtotal</td><td className="p-3 pt-6 text-right">{formatCurrency(invoice.subtotal || 0)}</td></tr>
+                                        {(invoice.taxes || []).map((t, i) => (<tr key={i}><td className="p-3 text-right">{t.name} ({t.rate}%)</td><td className="p-3 text-right">{formatCurrency(t.amount)}</td></tr>))}
                                     </>
                                 )}
-                                <tr><td className="p-3 font-bold text-lg text-right border-t-2 border-gray-300">Grand Total</td><td className="p-3 font-bold text-lg text-right border-t-2 border-gray-300">{formatCurrency(grandTotal, hospital.currency)}</td></tr>
-                                <tr><td className="p-3 text-right">Amount Paid</td><td className="p-3 text-right">{formatCurrency(paid, hospital.currency)}</td></tr>
-                                <tr><td className="p-3 font-bold text-lg text-red-600 text-right border-t border-gray-300">Amount Due</td><td className="p-3 font-bold text-lg text-red-600 text-right border-t border-gray-300">{formatCurrency(due, hospital.currency)}</td></tr>
+                                <tr><td className="p-3 font-bold text-lg text-right border-t-2 border-gray-300">Grand Total</td><td className="p-3 font-bold text-lg text-right border-t-2 border-gray-300">{formatCurrency(grandTotal)}</td></tr>
+                                <tr><td className="p-3 text-right">Amount Paid</td><td className="p-3 text-right">{formatCurrency(paid)}</td></tr>
+                                <tr><td className="p-3 font-bold text-lg text-red-600 text-right border-t border-gray-300">Amount Due</td><td className="p-3 font-bold text-lg text-red-600 text-right border-t border-gray-300">{formatCurrency(due)}</td></tr>
                             </tfoot>
                         </table>
                         <div className="mt-8 grid grid-cols-2 gap-8 text-sm text-gray-800 print:text-black">
@@ -399,7 +398,7 @@ export const ClassicInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invo
     )
 };
 
-export const SimpleInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText }) => {
+export const SimpleInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText, formatDate, formatTime, formatCurrency }) => {
     const grandTotal = invoice.totalAmount ?? 0;
     const paid = invoice.amountPaid ?? 0;
     const due = grandTotal - paid;
@@ -435,30 +434,30 @@ export const SimpleInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoi
                         <section className="text-sm mb-10 text-gray-800 print:text-black">
                             <p><strong>Billed To:</strong> {patient.name}</p>
                             <p className="text-gray-700 print:text-black">{patient.address}</p>
-                            <p><strong>Date:</strong> {invoice.createdAt?.toDate().toLocaleDateString()}</p>
+                            <p><strong>Date:</strong> {invoice.createdAt?.toDate() ? formatDate(invoice.createdAt.toDate()) : 'N/A'}</p>
                         </section>
                         <table className="w-full text-left text-sm">
                             <thead><tr><th className="p-2 bg-gray-100 font-bold text-gray-800 print:text-black">Description</th><th className="p-2 bg-gray-100 font-bold text-right text-gray-800 print:text-black">Amount</th></tr></thead>
-                            <tbody className="text-gray-900 print:text-black">{invoice.items?.map((item, i) => (<tr key={i}><td className="p-2 border-b">{item.description || item.name}</td><td className="p-2 border-b text-right">{formatCurrency(((item.cost || item.salePrice) || 0) * (item.quantity || 1), hospital.currency)}</td></tr>))}</tbody>
+                            <tbody className="text-gray-900 print:text-black">{invoice.items?.map((item, i) => (<tr key={i}><td className="p-2 border-b">{item.description || item.name}</td><td className="p-2 border-b text-right">{formatCurrency(((item.cost || item.salePrice) || 0) * (item.quantity || 1))}</td></tr>))}</tbody>
                         </table>
                         <section className="mt-8 ml-auto w-1/2 text-right text-sm">
                             {type === 'POS' ? (
                                 <>
-                                    <div className="flex justify-between text-gray-800 print:text-black"><p>Gross Total:</p><p>{formatCurrency(invoice.grossTotal || 0, hospital.currency)}</p></div>
-                                    <div className="flex justify-between mt-1 text-gray-800 print:text-black"><p>Total Tax:</p><p>{formatCurrency((invoice as POSSale).taxAmount || 0, hospital.currency)}</p></div>
-                                    <div className="flex justify-between mt-1 font-semibold text-gray-800 print:text-black"><p>Subtotal:</p><p>{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0), hospital.currency)}</p></div>
-                                    {(invoice.totalItemDiscount || 0) > 0 && <div className="flex justify-between mt-1 text-green-600"><p>Item Discounts:</p><p>- {formatCurrency(invoice.totalItemDiscount || 0, hospital.currency)}</p></div>}
-                                    {(invoice.overallDiscount || 0) > 0 && <div className="flex justify-between mt-1 text-green-600"><p>Overall Discount:</p><p>- {formatCurrency(invoice.overallDiscount || 0, hospital.currency)}</p></div>}
+                                    <div className="flex justify-between text-gray-800 print:text-black"><p>Gross Total:</p><p>{formatCurrency(invoice.grossTotal || 0)}</p></div>
+                                    <div className="flex justify-between mt-1 text-gray-800 print:text-black"><p>Total Tax:</p><p>{formatCurrency((invoice as POSSale).taxAmount || 0)}</p></div>
+                                    <div className="flex justify-between mt-1 font-semibold text-gray-800 print:text-black"><p>Subtotal:</p><p>{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0))}</p></div>
+                                    {(invoice.totalItemDiscount || 0) > 0 && <div className="flex justify-between mt-1 text-green-600"><p>Item Discounts:</p><p>- {formatCurrency(invoice.totalItemDiscount || 0)}</p></div>}
+                                    {(invoice.overallDiscount || 0) > 0 && <div className="flex justify-between mt-1 text-green-600"><p>Overall Discount:</p><p>- {formatCurrency(invoice.overallDiscount || 0)}</p></div>}
                                 </>
                             ) : (
                                 <>
-                                     <div className="flex justify-between text-gray-800 print:text-black"><p>Subtotal:</p><p>{formatCurrency(invoice.subtotal || 0, hospital.currency)}</p></div>
-                                     {(invoice.taxes || []).map((t, i) => (<div key={i} className="flex justify-between mt-1 text-gray-800 print:text-black"><p>{t.name} ({t.rate}%):</p><p>{formatCurrency(t.amount, hospital.currency)}</p></div>))}
+                                     <div className="flex justify-between text-gray-800 print:text-black"><p>Subtotal:</p><p>{formatCurrency(invoice.subtotal || 0)}</p></div>
+                                     {(invoice.taxes || []).map((t, i) => (<div key={i} className="flex justify-between mt-1 text-gray-800 print:text-black"><p>{t.name} ({t.rate}%):</p><p>{formatCurrency(t.amount)}</p></div>))}
                                 </>
                             )}
-                            <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t text-gray-900 print:text-black"><p>Grand Total:</p><p>{formatCurrency(grandTotal, hospital.currency)}</p></div>
-                            <div className="flex justify-between mt-1 text-gray-800 print:text-black"><p>Amount Paid:</p><p>{formatCurrency(paid, hospital.currency)}</p></div>
-                            <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t text-red-600"><p>Amount Due:</p><p>{formatCurrency(due, hospital.currency)}</p></div>
+                            <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t text-gray-900 print:text-black"><p>Grand Total:</p><p>{formatCurrency(grandTotal)}</p></div>
+                            <div className="flex justify-between mt-1 text-gray-800 print:text-black"><p>Amount Paid:</p><p>{formatCurrency(paid)}</p></div>
+                            <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t text-red-600"><p>Amount Due:</p><p>{formatCurrency(due)}</p></div>
                         </section>
                         <section className="mt-8 text-sm text-gray-800 print:text-black">
                             <h4 className="font-semibold uppercase mb-2">Payment Details</h4>
@@ -500,7 +499,7 @@ export const SimpleInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoi
     )
 };
 
-export const ColorfulInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText }) => {
+export const ColorfulInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText, formatDate, formatTime, formatCurrency }) => {
     const grandTotal = invoice.totalAmount ?? 0;
     const paid = invoice.amountPaid ?? 0;
     const due = grandTotal - paid;
@@ -537,7 +536,7 @@ export const ColorfulInvoice: React.FC<InvoiceProps> = ({ hospital, patient, inv
                                     <p>{patient.name}</p>
                                     <p className="text-xs">{patient.address}</p>
                                     <p className="mt-4 font-semibold">Date:</p>
-                                    <p>{invoice.createdAt?.toDate().toLocaleDateString()}</p>
+                                    <p>{invoice.createdAt?.toDate() ? formatDate(invoice.createdAt.toDate()) : 'N/A'}</p>
                                     <p className="mt-4 font-semibold">Invoice #:</p>
                                     <p>{invoice.invoiceId || invoice.saleId}</p>
                                 </div>
@@ -545,28 +544,28 @@ export const ColorfulInvoice: React.FC<InvoiceProps> = ({ hospital, patient, inv
                             <div className="w-3/4 p-10 pt-0 flex flex-col">
                                 <table className="w-full text-left">
                                     <thead><tr><th className="p-3 text-teal-600 print:text-black border-b-2 border-teal-500">Description</th><th className="p-3 text-teal-600 print:text-black border-b-2 border-teal-500 text-right">Amount</th></tr></thead>
-                                    <tbody className="text-gray-900 print:text-black">{invoice.items?.map((item, i) => (<tr key={i}><td className="p-3 border-b">{item.description || item.name}</td><td className="p-3 border-b text-right">{formatCurrency(((item.cost || item.salePrice) || 0) * (item.quantity || 1), hospital.currency)}</td></tr>))}</tbody>
+                                    <tbody className="text-gray-900 print:text-black">{invoice.items?.map((item, i) => (<tr key={i}><td className="p-3 border-b">{item.description || item.name}</td><td className="p-3 border-b text-right">{formatCurrency(((item.cost || item.salePrice) || 0) * (item.quantity || 1))}</td></tr>))}</tbody>
                                 </table>
                                 <div className="mt-auto ml-auto text-right w-2/3 space-y-2 pt-8 text-gray-800 print:text-black">
                                     {type === 'POS' ? (
                                         <>
-                                            <div className="flex justify-between"><p>Gross Total:</p><p>{formatCurrency(invoice.grossTotal || 0, hospital.currency)}</p></div>
-                                            <div className="flex justify-between"><p>Total Tax:</p><p>{formatCurrency((invoice as POSSale).taxAmount || 0, hospital.currency)}</p></div>
-                                            <div className="flex justify-between font-semibold"><p>Subtotal:</p><p>{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0), hospital.currency)}</p></div>
-                                            {(invoice.totalItemDiscount || 0) > 0 && <div className="flex justify-between text-green-600"><p>Item Discounts:</p><p>- {formatCurrency(invoice.totalItemDiscount || 0, hospital.currency)}</p></div>}
-                                            {(invoice.overallDiscount || 0) > 0 && <div className="flex justify-between text-green-600"><p>Overall Discount:</p><p>- {formatCurrency(invoice.overallDiscount || 0, hospital.currency)}</p></div>}
+                                            <div className="flex justify-between"><p>Gross Total:</p><p>{formatCurrency(invoice.grossTotal || 0)}</p></div>
+                                            <div className="flex justify-between"><p>Total Tax:</p><p>{formatCurrency((invoice as POSSale).taxAmount || 0)}</p></div>
+                                            <div className="flex justify-between font-semibold"><p>Subtotal:</p><p>{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0))}</p></div>
+                                            {(invoice.totalItemDiscount || 0) > 0 && <div className="flex justify-between text-green-600"><p>Item Discounts:</p><p>- {formatCurrency(invoice.totalItemDiscount || 0)}</p></div>}
+                                            {(invoice.overallDiscount || 0) > 0 && <div className="flex justify-between text-green-600"><p>Overall Discount:</p><p>- {formatCurrency(invoice.overallDiscount || 0)}</p></div>}
                                         </>
                                     ) : (
                                         <>
-                                            <div className="flex justify-between"><p>Subtotal:</p><p>{formatCurrency(invoice.subtotal || 0, hospital.currency)}</p></div>
+                                            <div className="flex justify-between"><p>Subtotal:</p><p>{formatCurrency(invoice.subtotal || 0)}</p></div>
                                             {(invoice.taxes || []).map((t, i) => (
-                                                <div key={i} className="flex justify-between"><p>{t.name} ({t.rate}%):</p><p>{formatCurrency(t.amount, hospital.currency)}</p></div>
+                                                <div key={i} className="flex justify-between"><p>{t.name} ({t.rate}%):</p><p>{formatCurrency(t.amount)}</p></div>
                                             ))}
                                         </>
                                     )}
-                                    <div className="flex justify-between text-xl font-bold border-t pt-2 mt-2"><p>Grand Total:</p><p>{formatCurrency(grandTotal, hospital.currency)}</p></div>
-                                    <div className="flex justify-between"><p>Amount Paid:</p><p>{formatCurrency(paid, hospital.currency)}</p></div>
-                                    <div className="flex justify-between text-xl font-bold text-red-600"><p>Amount Due:</p><p>{formatCurrency(due, hospital.currency)}</p></div>
+                                    <div className="flex justify-between text-xl font-bold border-t pt-2 mt-2"><p>Grand Total:</p><p>{formatCurrency(grandTotal)}</p></div>
+                                    <div className="flex justify-between"><p>Amount Paid:</p><p>{formatCurrency(paid)}</p></div>
+                                    <div className="flex justify-between text-xl font-bold text-red-600"><p>Amount Due:</p><p>{formatCurrency(due)}</p></div>
                                 </div>
                                 <div className="mt-8 text-sm text-gray-800 print:text-black">
                                     <p><strong>Payment Mode:</strong> {paymentMethods || 'N/A'}</p>
@@ -605,7 +604,7 @@ export const ColorfulInvoice: React.FC<InvoiceProps> = ({ hospital, patient, inv
     )
 };
 
-export const MinimalInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText }) => {
+export const MinimalInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText, formatDate, formatTime, formatCurrency }) => {
     const grandTotal = invoice.totalAmount ?? 0;
     const paid = invoice.amountPaid ?? 0;
     const due = grandTotal - paid;
@@ -640,25 +639,25 @@ export const MinimalInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invo
                             <div><p className="uppercase text-xs tracking-widest mb-1 text-gray-700 print:text-black">Invoice No.</p><p className="font-normal text-gray-800 print:text-black">{invoice.invoiceId || invoice.saleId}</p></div>
                         </section>
                         <table className="w-full text-left text-sm">
-                            <tbody className="text-gray-800 print:text-black">{invoice.items?.map((item, i) => (<tr key={i}><td className="py-3 border-b border-gray-100 text-gray-900 print:text-black">{item.description || item.name}</td><td className="py-3 border-b border-gray-100 text-right text-gray-900 print:text-black">{formatCurrency(((item.cost || item.salePrice) || 0) * (item.quantity || 1), hospital.currency)}</td></tr>))}</tbody>
+                            <tbody className="text-gray-800 print:text-black">{invoice.items?.map((item, i) => (<tr key={i}><td className="py-3 border-b border-gray-100 text-gray-900 print:text-black">{item.description || item.name}</td><td className="py-3 border-b border-gray-100 text-right text-gray-900 print:text-black">{formatCurrency(((item.cost || item.salePrice) || 0) * (item.quantity || 1))}</td></tr>))}</tbody>
                             <tfoot className="text-gray-800 print:text-black">
                                 {type === 'POS' ? (
                                     <>
-                                        <tr><td className="py-2 pt-6 text-right">Gross Total</td><td className="py-2 pt-6 text-right">{formatCurrency(invoice.grossTotal || 0, hospital.currency)}</td></tr>
-                                        <tr><td className="py-2 text-right">Total Tax</td><td className="py-2 text-right">{formatCurrency((invoice as POSSale).taxAmount || 0, hospital.currency)}</td></tr>
-                                        <tr><td className="py-2 font-semibold text-right">Subtotal</td><td className="py-2 font-semibold text-right">{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0), hospital.currency)}</td></tr>
-                                        {(invoice.totalItemDiscount || 0) > 0 && <tr><td className="py-2 text-green-600 text-right">Item Discounts</td><td className="py-2 text-green-600 text-right">- {formatCurrency(invoice.totalItemDiscount || 0, hospital.currency)}</td></tr>}
-                                        {(invoice.overallDiscount || 0) > 0 && <tr><td className="py-2 text-green-600 text-right">Overall Discount</td><td className="py-2 text-green-600 text-right">- {formatCurrency(invoice.overallDiscount || 0, hospital.currency)}</td></tr>}
+                                        <tr><td className="py-2 pt-6 text-right">Gross Total</td><td className="py-2 pt-6 text-right">{formatCurrency(invoice.grossTotal || 0)}</td></tr>
+                                        <tr><td className="py-2 text-right">Total Tax</td><td className="py-2 text-right">{formatCurrency((invoice as POSSale).taxAmount || 0)}</td></tr>
+                                        <tr><td className="py-2 font-semibold text-right">Subtotal</td><td className="py-2 font-semibold text-right">{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0))}</td></tr>
+                                        {(invoice.totalItemDiscount || 0) > 0 && <tr><td className="py-2 text-green-600 text-right">Item Discounts</td><td className="py-2 text-green-600 text-right">- {formatCurrency(invoice.totalItemDiscount || 0)}</td></tr>}
+                                        {(invoice.overallDiscount || 0) > 0 && <tr><td className="py-2 text-green-600 text-right">Overall Discount</td><td className="py-2 text-green-600 text-right">- {formatCurrency(invoice.overallDiscount || 0)}</td></tr>}
                                     </>
                                 ) : (
                                     <>
-                                        <tr><td className="py-2 pt-6 text-right">Subtotal</td><td className="py-2 pt-6 text-right">{formatCurrency(invoice.subtotal || 0, hospital.currency)}</td></tr>
-                                        {(invoice.taxes || []).map((t, i) => (<tr key={i}><td className="py-2 text-right">{t.name} ({t.rate}%)</td><td className="py-2 text-right">{formatCurrency(t.amount, hospital.currency)}</td></tr>))}
+                                        <tr><td className="py-2 pt-6 text-right">Subtotal</td><td className="py-2 pt-6 text-right">{formatCurrency(invoice.subtotal || 0)}</td></tr>
+                                        {(invoice.taxes || []).map((t, i) => (<tr key={i}><td className="py-2 text-right">{t.name} ({t.rate}%)</td><td className="py-2 text-right">{formatCurrency(t.amount)}</td></tr>))}
                                     </>
                                 )}
-                                <tr><td className="py-2 font-normal text-lg text-gray-900 print:text-black text-right">Grand Total</td><td className="py-2 font-normal text-lg text-gray-900 print:text-black text-right">{formatCurrency(grandTotal, hospital.currency)}</td></tr>
-                                <tr><td className="py-2 text-right">Amount Paid</td><td className="py-2 text-right">{formatCurrency(paid, hospital.currency)}</td></tr>
-                                <tr><td className="py-2 font-normal text-lg text-red-600 text-right">Amount Due</td><td className="py-2 font-normal text-lg text-red-600 text-right">{formatCurrency(due, hospital.currency)}</td></tr>
+                                <tr><td className="py-2 font-normal text-lg text-gray-900 print:text-black text-right">Grand Total</td><td className="py-2 font-normal text-lg text-gray-900 print:text-black text-right">{formatCurrency(grandTotal)}</td></tr>
+                                <tr><td className="py-2 text-right">Amount Paid</td><td className="py-2 text-right">{formatCurrency(paid)}</td></tr>
+                                <tr><td className="py-2 font-normal text-lg text-red-600 text-right">Amount Due</td><td className="py-2 font-normal text-lg text-red-600 text-right">{formatCurrency(due)}</td></tr>
                             </tfoot>
                         </table>
                         <section className="mt-8 text-sm text-gray-800 print:text-black">
@@ -697,7 +696,7 @@ export const MinimalInvoice: React.FC<InvoiceProps> = ({ hospital, patient, invo
 };
 
 // Thermal Receipt (80mm width)
-export const ThermalReceipt: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText }) => {
+export const ThermalReceipt: React.FC<InvoiceProps> = ({ hospital, patient, invoice, type, footerText, formatDate, formatTime, formatCurrency }) => {
     const isPosSale = type === 'POS';
     const grandTotal = invoice.totalAmount ?? 0;
     const paid = invoice.amountPaid ?? 0;
@@ -713,8 +712,8 @@ export const ThermalReceipt: React.FC<InvoiceProps> = ({ hospital, patient, invo
             {hospital.email && <p className="text-xs text-black">Email: {hospital.email}</p>}
         </div>
         <div className="border-t border-b border-dashed border-black my-2 py-1 text-xs text-black">
-            <div className="flex justify-between"><span className="text-black">Date:</span><span className="text-black">{invoice.createdAt?.toDate().toLocaleDateString()}</span></div>
-            <div className="flex justify-between"><span className="text-black">Time:</span><span className="text-black">{invoice.createdAt?.toDate().toLocaleTimeString()}</span></div>
+            <div className="flex justify-between"><span className="text-black">Date:</span><span className="text-black">{invoice.createdAt?.toDate() ? formatDate(invoice.createdAt.toDate()) : 'N/A'}</span></div>
+            <div className="flex justify-between"><span className="text-black">Time:</span><span className="text-black">{invoice.createdAt?.toDate() ? formatTime(invoice.createdAt.toDate()) : 'N/A'}</span></div>
             <div className="flex justify-between"><span className="text-black">Bill No:</span><span className="text-black">{invoice.invoiceId || invoice.saleId}</span></div>
         </div>
         <table className="w-full text-xs text-black">
@@ -733,19 +732,19 @@ export const ThermalReceipt: React.FC<InvoiceProps> = ({ hospital, patient, invo
                                 <div className="font-bold">{i+1}. {item.name}</div>
                                 <div className="text-[10px]">HSN: {item.hsnCode}, Batch: {item.batchNumber}, Exp: {item.expiryDate}</div>
                                 <div className="flex justify-between">
-                                    <span>{item.quantity} x {formatCurrency(item.salePrice || 0, hospital.currency)}</span>
-                                    <span>{formatCurrency((item.salePrice || 0) * (item.quantity || 1), hospital.currency)}</span>
+                                    <span>{item.quantity} x {formatCurrency(item.salePrice || 0)}</span>
+                                    <span>{formatCurrency((item.salePrice || 0) * (item.quantity || 1))}</span>
                                 </div>
                                 {item.taxAmount && item.taxAmount > 0 && 
                                     <div className="flex justify-between text-[10px]">
                                         <span>Tax ({item.taxName})</span>
-                                        <span>+ {formatCurrency(item.taxAmount * (item.quantity || 1), hospital.currency)}</span>
+                                        <span>+ {formatCurrency(item.taxAmount * (item.quantity || 1))}</span>
                                     </div>
                                 }
                                 {item.discountAmount && item.discountAmount > 0 && 
                                     <div className="flex justify-between text-[10px]">
                                         <span>Discount</span>
-                                        <span>- {formatCurrency(item.discountAmount, hospital.currency)}</span>
+                                        <span>- {formatCurrency(item.discountAmount)}</span>
                                     </div>
                                 }
                             </td>
@@ -754,7 +753,7 @@ export const ThermalReceipt: React.FC<InvoiceProps> = ({ hospital, patient, invo
                          <tr key={i}>
                             <td className="py-1 align-top text-left text-black">{item.description || item.name}</td>
                             <td className="text-center py-1 align-top text-black">{item.quantity || 1}</td>
-                            <td className="text-right py-1 align-top text-black">{formatCurrency(((item.cost || item.salePrice) || 0), hospital.currency)}</td>
+                            <td className="text-right py-1 align-top text-black">{formatCurrency(((item.cost || item.salePrice) || 0))}</td>
                         </tr>
                     )
                 ))}
@@ -763,30 +762,30 @@ export const ThermalReceipt: React.FC<InvoiceProps> = ({ hospital, patient, invo
         {isPosSale ? (
             <>
                 <div className="border-t border-dashed border-black my-2 py-1 text-xs text-black">
-                    <div className="flex justify-between"><span className="text-black">Gross Total:</span><span className="text-black">{formatCurrency(invoice.grossTotal || 0, hospital.currency)}</span></div>
-                    <div className="flex justify-between"><span className="text-black">Total Tax:</span><span className="text-black">{formatCurrency((invoice as POSSale).taxAmount || 0, hospital.currency)}</span></div>
-                    <div className="flex justify-between font-bold"><span className="text-black">Subtotal:</span><span className="text-black">{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0), hospital.currency)}</span></div>
-                    {(invoice.totalItemDiscount || 0) > 0 && <div className="flex justify-between"><span className="text-black">Item Discounts:</span><span className="text-black">- {formatCurrency(invoice.totalItemDiscount || 0, hospital.currency)}</span></div>}
-                    {(invoice.overallDiscount || 0) > 0 && <div className="flex justify-between"><span className="text-black">Overall Discount:</span><span className="text-black">- {formatCurrency(invoice.overallDiscount || 0, hospital.currency)}</span></div>}
+                    <div className="flex justify-between"><span className="text-black">Gross Total:</span><span className="text-black">{formatCurrency(invoice.grossTotal || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-black">Total Tax:</span><span className="text-black">{formatCurrency((invoice as POSSale).taxAmount || 0)}</span></div>
+                    <div className="flex justify-between font-bold"><span className="text-black">Subtotal:</span><span className="text-black">{formatCurrency((invoice.grossTotal || 0) + ((invoice as POSSale).taxAmount || 0))}</span></div>
+                    {(invoice.totalItemDiscount || 0) > 0 && <div className="flex justify-between"><span className="text-black">Item Discounts:</span><span className="text-black">- {formatCurrency(invoice.totalItemDiscount || 0)}</span></div>}
+                    {(invoice.overallDiscount || 0) > 0 && <div className="flex justify-between"><span className="text-black">Overall Discount:</span><span className="text-black">- {formatCurrency(invoice.overallDiscount || 0)}</span></div>}
                 </div>
                 <div className="border-t border-dashed border-black my-2 py-1 text-xs text-black">
-                    <div className="flex justify-between font-bold text-black"><span className="text-black">Grand Total:</span><span className="text-black">{formatCurrency(grandTotal, hospital.currency)}</span></div>
-                    <div className="flex justify-between text-black"><span className="text-black">Amount Paid:</span><span className="text-black">{formatCurrency(paid, hospital.currency)}</span></div>
-                    <div className="flex justify-between font-bold text-red-600"><span className="text-red-600">Amount Due:</span><span className="text-red-600">{formatCurrency(due, hospital.currency)}</span></div>
+                    <div className="flex justify-between font-bold text-black"><span className="text-black">Grand Total:</span><span className="text-black">{formatCurrency(grandTotal)}</span></div>
+                    <div className="flex justify-between text-black"><span className="text-black">Amount Paid:</span><span className="text-black">{formatCurrency(paid)}</span></div>
+                    <div className="flex justify-between font-bold text-red-600"><span className="text-red-600">Amount Due:</span><span className="text-red-600">{formatCurrency(due)}</span></div>
                 </div>
             </>
         ) : (
             <>
                 <div className="border-t border-dashed border-black my-2 py-1 text-xs text-black">
-                    <div className="flex justify-between"><span className="text-black">Subtotal:</span><span className="text-black">{formatCurrency(invoice.subtotal || 0, hospital.currency)}</span></div>
+                    <div className="flex justify-between"><span className="text-black">Subtotal:</span><span className="text-black">{formatCurrency(invoice.subtotal || 0)}</span></div>
                     {(invoice.taxes || []).map((t, i) => (
-                        <div key={i} className="flex justify-between"><span className="text-black">{t.name} ({t.rate}%):</span><span className="text-black">{formatCurrency(t.amount, hospital.currency)}</span></div>
+                        <div key={i} className="flex justify-between"><span className="text-black">{t.name} ({t.rate}%):</span><span className="text-black">{formatCurrency(t.amount)}</span></div>
                     ))}
                 </div>
                 <div className="border-t border-dashed border-black my-2 py-1 text-xs text-black">
-                    <div className="flex justify-between font-bold text-black"><span className="text-black">Grand Total:</span><span className="text-black">{formatCurrency(grandTotal, hospital.currency)}</span></div>
-                    <div className="flex justify-between text-black"><span className="text-black">Amount Paid:</span><span className="text-black">{formatCurrency(paid, hospital.currency)}</span></div>
-                    <div className="flex justify-between font-bold text-red-600"><span className="text-red-600">Amount Due:</span><span className="text-red-600">{formatCurrency(due, hospital.currency)}</span></div>
+                    <div className="flex justify-between font-bold text-black"><span className="text-black">Grand Total:</span><span className="text-black">{formatCurrency(grandTotal)}</span></div>
+                    <div className="flex justify-between text-black"><span className="text-black">Amount Paid:</span><span className="text-black">{formatCurrency(paid)}</span></div>
+                    <div className="flex justify-between font-bold text-red-600"><span className="text-red-600">Amount Due:</span><span className="text-red-600">{formatCurrency(due)}</span></div>
                 </div>
             </>
         )}
@@ -889,7 +888,10 @@ const InvoiceSettingsTabContent: React.FC<{
     onSave: () => Promise<void>;
     mockData: { hospital: Partial<Hospital>, patient: Partial<PatientDocument>, invoice: InvoiceForPreview, type: 'Treatment' | 'POS' };
     onPreview: (design: A4Design | ThermalDesign) => void;
-}> = ({ settings, onSettingsChange, onSave, mockData, onPreview }) => {
+    formatDate: (date: Date) => string;
+    formatTime: (date: Date) => string;
+    formatCurrency: (amount: number) => string;
+}> = ({ settings, onSettingsChange, onSave, mockData, onPreview, formatDate, formatTime, formatCurrency }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -970,7 +972,7 @@ const InvoiceSettingsTabContent: React.FC<{
                                             className={`relative group border-2 rounded-lg p-1 transition-all ${settings.design === design.value ? 'border-blue-500 ring-2 ring-blue-500/50' : 'border-slate-300 dark:border-slate-700'} ${isEditing ? 'cursor-pointer hover:border-blue-400' : 'cursor-not-allowed'}`}>
                                             <div className="bg-slate-100 dark:bg-slate-800 rounded h-48 overflow-hidden flex items-center justify-center">
                                                 <div className="transform scale-[0.23] origin-center">
-                                                    <design.Component {...mockData} footerText={settings.footerText}/>
+                                                    <design.Component {...mockData} footerText={settings.footerText} formatDate={formatDate} formatTime={formatTime} formatCurrency={formatCurrency} />
                                                 </div>
                                             </div>
                                             <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-opacity flex items-center justify-center">
@@ -991,7 +993,7 @@ const InvoiceSettingsTabContent: React.FC<{
                                             className={`relative group border-2 rounded-lg p-1 transition-all ${settings.design === design.value ? 'border-blue-500 ring-2 ring-blue-500/50' : 'border-slate-300 dark:border-slate-700'} ${isEditing ? 'cursor-pointer hover:border-blue-400' : 'cursor-not-allowed'}`}>
                                             <div className="bg-slate-100 dark:bg-slate-800 rounded h-48 overflow-hidden flex justify-center items-center">
                                                 <div className="transform scale-50 origin-center">
-                                                    <design.Component {...mockData} footerText={settings.footerText} />
+                                                    <design.Component {...mockData} footerText={settings.footerText} formatDate={formatDate} formatTime={formatTime} formatCurrency={formatCurrency} />
                                                 </div>
                                             </div>
                                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-opacity flex items-center justify-center">
@@ -1029,7 +1031,10 @@ const PreviewModal: React.FC<{
     design: A4Design | ThermalDesign | null;
     mockData: { hospital: Partial<Hospital>, patient: Partial<PatientDocument>, invoice: InvoiceForPreview, type: 'Treatment' | 'POS' };
     footerText: string;
-}> = ({ isOpen, onClose, design, mockData, footerText }) => {
+    formatDate: (date: Date) => string;
+    formatTime: (date: Date) => string;
+    formatCurrency: (amount: number) => string;
+}> = ({ isOpen, onClose, design, mockData, footerText, formatDate, formatTime, formatCurrency }) => {
     if (!isOpen || !design) return null;
 
     const allDesigns = [...a4Designs, ...thermalDesigns];
@@ -1051,6 +1056,9 @@ const PreviewModal: React.FC<{
                        <InvoiceComponent 
                             {...mockData}
                             footerText={footerText} 
+                            formatDate={formatDate}
+                            formatTime={formatTime}
+                            formatCurrency={formatCurrency}
                         />
                     </div>
                 </div>
@@ -1059,9 +1067,12 @@ const PreviewModal: React.FC<{
     );
 };
 
+import { useFormatting } from '@/utils/formatting';
+
 export const InvoiceSettingsScreen: React.FC = () => {
     const { user, updateInvoiceSettings } = useAuth();
     const { addToast } = useToast();
+    const { formatDate, formatTime, formatCurrency } = useFormatting();
     const [activeTab, setActiveTab] = useState<'treatmentInvoice' | 'posInvoice'>('treatmentInvoice');
     const [settings, setSettings] = useState<InvoiceSettingsData | null>(user?.hospitalInvoiceSettings || null);
     const [previewingDesign, setPreviewingDesign] = useState<A4Design | ThermalDesign | null>(null);
@@ -1179,7 +1190,7 @@ export const InvoiceSettingsScreen: React.FC = () => {
 
     return (
         <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-            <PreviewModal isOpen={!!previewingDesign} onClose={() => setPreviewingDesign(null)} design={previewingDesign} mockData={mockData} footerText={settings ? settings[activeTab].footerText : ''} />
+            <PreviewModal isOpen={!!previewingDesign} onClose={() => setPreviewingDesign(null)} design={previewingDesign} mockData={mockData} footerText={settings ? settings[activeTab].footerText : ''} formatDate={formatDate} formatTime={formatTime} formatCurrency={formatCurrency} />
             <div className="mb-6">
                 <nav className="flex space-x-2 border-b border-slate-200 dark:border-slate-800" aria-label="Tabs">
                     <TabButton tabId="treatmentInvoice" title="Treatment Invoice" icon={faFileInvoice} />
@@ -1194,6 +1205,9 @@ export const InvoiceSettingsScreen: React.FC = () => {
                     onSave={() => handleSave('treatmentInvoice', settings.treatmentInvoice)}
                     mockData={mockData}
                     onPreview={setPreviewingDesign}
+                    formatDate={formatDate}
+                    formatTime={formatTime}
+                    formatCurrency={formatCurrency}
                 />
             )}
             
@@ -1204,6 +1218,9 @@ export const InvoiceSettingsScreen: React.FC = () => {
                     onSave={() => handleSave('posInvoice', settings.posInvoice)}
                     mockData={mockData}
                     onPreview={setPreviewingDesign}
+                    formatDate={formatDate}
+                    formatTime={formatTime}
+                    formatCurrency={formatCurrency}
                 />
             )}
         </div>

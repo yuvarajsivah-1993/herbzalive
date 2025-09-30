@@ -185,9 +185,12 @@ const GeneralSettingsTab: React.FC = () => {
     );
 };
 
+import { useFormatting } from '@/utils/formatting';
+
 const SubscriptionTab: React.FC = () => {
     const { user, getSubscriptionPackages, changeSubscriptionPackage, initiatePaymentForPackage } = useAuth();
     const { addToast } = useToast();
+    const { formatDate, formatCurrency } = useFormatting();
     const [packages, setPackages] = useState<SubscriptionPackage[]>([]);
     const [loading, setLoading] = useState(true);
     const [confirmModal, setConfirmModal] = useState<{pkg: SubscriptionPackage, interval: 'monthly' | 'quarterly' | 'yearly'} | null>(null);
@@ -201,10 +204,7 @@ const SubscriptionTab: React.FC = () => {
     
     const memberSince = useMemo(() => {
         if (!user?.hospitalCreatedAt) return null;
-        return user.hospitalCreatedAt.toDate().toLocaleDateString('en-US', {
-            month: 'long',
-            year: 'numeric'
-        });
+        return formatDate(user.hospitalCreatedAt.toDate());
     }, [user?.hospitalCreatedAt]);
     
     const handleFreePackageSwitch = async () => {
@@ -249,7 +249,7 @@ const SubscriptionTab: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {confirmModal && <ConfirmationModal isOpen={true} onClose={() => setConfirmModal(null)} onConfirm={handlePurchase} title="Change Subscription Plan" message={`You are about to be charged ${formatCurrency(confirmModal.pkg.prices[confirmModal.interval], 'INR')} for the ${confirmModal.pkg.name} (${confirmModal.interval}) plan. Do you want to proceed?`} confirmButtonText="Proceed to Payment" confirmButtonVariant="primary" loading={actionLoading} />}
+            {confirmModal && <ConfirmationModal isOpen={true} onClose={() => setConfirmModal(null)} onConfirm={handlePurchase} title="Change Subscription Plan" message={`You are about to be charged ${formatCurrency(confirmModal.pkg.prices[confirmModal.interval])} for the ${confirmModal.pkg.name} (${confirmModal.interval}) plan. Do you want to proceed?`} confirmButtonText="Proceed to Payment" confirmButtonVariant="primary" loading={actionLoading} />}
             {confirmFreeModal && <ConfirmationModal isOpen={true} onClose={() => setConfirmFreeModal(null)} onConfirm={handleFreePackageSwitch} title="Switch Plan" message={`Are you sure you want to switch to the ${confirmFreeModal.name} plan? This is a free plan.`} confirmButtonText="Confirm Switch" confirmButtonVariant="primary" loading={actionLoading} />}
             <DetailCard title="Current Subscription">
                  {loading ? <p>Loading...</p> : user?.subscriptionPackage ? (
@@ -258,7 +258,7 @@ const SubscriptionTab: React.FC = () => {
                         <p className="mt-1 text-slate-500">{user.subscriptionPackage.description}</p>
                         {memberSince && <p className="mt-1 text-sm text-slate-500">Member since {memberSince}</p>}
                         {user.subscriptionPackage.prices?.monthly > 0 && user.hospitalSubscriptionExpiryDate && (
-                            <p className="mt-4">Your plan renews on: <strong className="text-slate-800 dark:text-slate-200">{user.hospitalSubscriptionExpiryDate.toDate().toLocaleDateString()}</strong></p>
+                            <p className="mt-4">Your plan renews on: <strong className="text-slate-800 dark:text-slate-200">{formatDate(user.hospitalSubscriptionExpiryDate.toDate())}</strong></p>
                         )}
                     </div>
                 ) : <p>You are currently on a trial or have no active subscription. {memberSince && <span className="text-sm text-slate-500">Member since {memberSince}</span>}</p>}
@@ -282,7 +282,7 @@ const SubscriptionTab: React.FC = () => {
                         <div key={pkg.id} className={`relative border rounded-lg p-6 flex flex-col ${user?.subscriptionPackageId === pkg.id ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20' : 'border-slate-300 dark:border-slate-700'}`}>
                             {savings > 0 && <div className="absolute top-0 -translate-y-1/2 left-1/2 -translate-x-1/2 px-3 py-1 bg-red-500 text-white text-xs font-semibold rounded-full">Save {savings}%</div>}
                             <h3 className="text-xl font-bold">{pkg.name}</h3>
-                            <p className="mt-2 text-3xl font-extrabold">{formatCurrency(getPrice(pkg, selectedInterval), 'INR')}<span className="text-base font-medium text-slate-500">/{selectedInterval === 'monthly' ? 'mo' : selectedInterval === 'quarterly' ? 'qtr' : 'yr'}</span></p>
+                            <p className="mt-2 text-3xl font-extrabold">{formatCurrency(getPrice(pkg, selectedInterval))}<span className="text-base font-medium text-slate-500">/{selectedInterval === 'monthly' ? 'mo' : selectedInterval === 'quarterly' ? 'qtr' : 'yr'}</span></p>
                             <p className="mt-2 text-sm text-slate-500 flex-grow min-h-[40px]">{pkg.description}</p>
                              <ul className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-400">
                                 {pkg.maxUsers > 0 && <li className="flex items-center"><FontAwesomeIcon icon={faCheckCircle} className="text-green-500 mr-2" /> Up to {pkg.maxUsers} staff users</li>}
@@ -305,14 +305,11 @@ const SubscriptionTab: React.FC = () => {
     );
 };
 
-const formatCurrency = (amount: number, currencyCode: string = 'USD') => {
-    const symbols: { [key: string]: string } = { USD: '$', INR: '₹' };
-    const symbol = symbols[currencyCode] || '$';
-    return `${symbol}${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+
 
 const TransactionsTab: React.FC = () => {
     const { getSubscriptionTransactions } = useAuth();
+    const { formatDate, formatCurrency } = useFormatting();
     const [transactions, setTransactions] = useState<SubscriptionTransaction[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -339,9 +336,9 @@ const TransactionsTab: React.FC = () => {
                         <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-800">
                             {transactions.length > 0 ? transactions.map(tx => (
                                 <tr key={tx.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{tx.createdAt.toDate().toLocaleDateString()}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{formatDate(tx.createdAt.toDate())}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800 dark:text-slate-200">{tx.packageName} ({tx.interval})</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800 dark:text-slate-200">{formatCurrency(tx.amount, 'INR')}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800 dark:text-slate-200">{formatCurrency(tx.amount)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-mono">{tx.paymentId}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                                         <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${tx.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>

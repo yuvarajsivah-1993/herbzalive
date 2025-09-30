@@ -264,11 +264,11 @@ const VendorDetailsScreen: React.FC = () => {
                                                     <td colSpan={5} className="p-4">
                                                         <h4 className="font-semibold text-sm mb-2 text-slate-800 dark:text-slate-200">Return History for this Order</h4>
                                                         {orderReturns.map(ret => (
-                                                            <div key={ret.id} className="mb-2 p-2 border rounded-lg bg-white dark:bg-slate-900">
+                                                            <div key={`${order.id}-${ret.id}`} className="mb-2 p-2 border rounded-lg bg-white dark:bg-slate-900">
                                                                 <p className="font-semibold text-slate-700 dark:text-slate-300">Return ID: <span className="font-mono text-blue-600 hover:underline cursor-pointer" onClick={() => navigate(`/hospitals/${user?.hospitalSlug}/stocks/returns/${ret.id}`)}>{ret.returnId}</span> on {ret.returnDate.toDate().toLocaleDateString()}</p>
                                                                 <table className="w-full text-xs mt-1 text-slate-700 dark:text-slate-300">
                                                                     <thead><tr className="border-b"><th className="p-1 text-left">Item</th><th className="p-1 text-left">Batch No.</th><th className="p-1 text-right">Qty Returned</th></tr></thead>
-                                                                    <tbody>{ret.items.map((item, idx) => (<tr key={idx}><td className="p-1">{item.name}</td><td className="p-1 font-mono">{item.batchNumber}</td><td className="p-1 text-right">{item.returnedQty}</td></tr>))}</tbody>
+                                                                    <tbody>{ret.items.map((item) => (<tr key={item.stockItemId}><td className="p-1">{item.name}</td><td className="p-1 font-mono">{item.batchNumber}</td><td className="p-1 text-right">{item.returnedQty}</td></tr>))}</tbody>
                                                                 </table>
                                                             </div>
                                                         ))}

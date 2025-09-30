@@ -88,7 +88,7 @@ export const useUserManagement = (user: AppUser | null, uploadFile: UploadFileFu
                 try {
                     await storage.refFromURL(oldPhotoUrl).delete();
                 } catch (e) {
-                    console.warn("Failed to delete old profile photo, it might not exist.", e);
+                    // console.warn("Failed to delete old profile photo, it might not exist.", e);
                 }
             }
             updateData.profilePhotoUrl = '';
@@ -99,7 +99,7 @@ export const useUserManagement = (user: AppUser | null, uploadFile: UploadFileFu
                 try {
                     await storage.refFromURL(oldPhotoUrl).delete();
                 } catch (e) {
-                    console.warn("Failed to delete old profile photo, it might not exist.", e);
+                    // console.warn("Failed to delete old profile photo, it might not exist.", e);
                 }
             }
             
@@ -148,10 +148,8 @@ export const useUserManagement = (user: AppUser | null, uploadFile: UploadFileFu
     }, []);
 
     const resetUserPasswordByAdmin = useCallback(async (userId: string, newPassword: string) => {
-        console.log(`[ADMIN] Requesting password reset for user ${userId} with new password: ${newPassword}`);
         return new Promise<void>((resolve) => {
           setTimeout(() => {
-            console.log(`This is a demo. In a real app, the password for user ${userId} would be securely reset via a backend service.`);
             resolve();
           }, 1000);
         });
@@ -167,7 +165,6 @@ export const useUserManagement = (user: AppUser | null, uploadFile: UploadFileFu
           await firebaseUser.reauthenticateWithCredential(credential);
           await firebaseUser.updatePassword(newPass);
         } catch (error: any) {
-            console.error("Password change failed:", error);
             if (error.code === 'auth/wrong-password') {
                 throw new Error('The current password you entered is incorrect.');
             }

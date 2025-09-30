@@ -1,8 +1,6 @@
-
-
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { NotificationSettings, NotificationTemplate, EmailSettings, EmailProvider } from '../types';
+import { NotificationSettings, NotificationTemplate, EmailSettings } from '../types';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
@@ -11,30 +9,59 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSave, faTimes, faUndo, faEnvelope, faCalendarCheck, faReceipt, faBirthdayCake, faUser, faHospital, faClock, faFileInvoiceDollar, faStore, faIdCard, faPaperPlane, faWrench, faFileLines } from '@fortawesome/free-solid-svg-icons';
 import Select from '../components/ui/Select';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
-import { sendEmail } from '../services/emailService';
+
 
 type NotificationType = keyof NotificationSettings;
 
 const defaultSettings: NotificationSettings = {
     welcomeMessage: {
         enabled: true,
-        template: { subject: 'Welcome to {{hospitalName}}!', body: 'Dear {{patientName}},\n\nWelcome to our hospital, {{hospitalName}}. We are glad to have you with us.\n\nBest regards,\nThe Team' }
+        template: { subject: 'Welcome to {{hospitalName}}!', body: `Dear {{patientName}},
+
+Welcome to our hospital, {{hospitalName}}. We are glad to have you with us.
+
+Best regards,
+The Team` }
     },
     appointmentReminder: {
         enabled: true, daysBefore: 1, time: '09:00',
-        template: { subject: 'Appointment Reminder from {{hospitalName}}', body: 'Hi {{patientName}},\n\nThis is a reminder for your upcoming appointment on {{appointmentDate}} at {{appointmentTime}} with Dr. {{doctorName}} for {{treatmentName}}.\n\nSee you soon,\n{{hospitalName}}' }
+        template: { subject: 'Appointment Reminder from {{hospitalName}}', body: `Hi {{patientName}},
+
+This is a reminder for your upcoming appointment on {{appointmentDate}} at {{appointmentTime}} with Dr. {{doctorName}} for {{treatmentName}}.
+
+See you soon,
+{{hospitalName}}` }
     },
     posSaleInvoice: {
         enabled: true,
-        template: { subject: 'Your Invoice from {{hospitalName}}', body: 'Dear {{patientName}},\n\nPlease find your invoice attached for your recent purchase.\n\nTotal Amount: {{totalAmount}}\n\nThank you,\n{{hospitalName}}' }
+        template: { subject: 'Your Invoice from {{hospitalName}}', body: `Dear {{patientName}},
+
+Please find your invoice attached for your recent purchase.
+
+Total Amount: {{totalAmount}}
+
+Thank you,
+{{hospitalName}}` }
     },
     treatmentInvoice: {
         enabled: true,
-        template: { subject: 'Your Invoice from {{hospitalName}}', body: 'Dear {{patientName}},\n\nPlease find your invoice attached for your recent treatment.\n\nTotal Amount: {{totalAmount}}\n\nThank you,\n{{hospitalName}}' }
+        template: { subject: 'Your Invoice from {{hospitalName}}', body: `Dear {{patientName}},
+
+Please find your invoice attached for your recent treatment.
+
+Total Amount: {{totalAmount}}
+
+Thank you,
+{{hospitalName}}` }
     },
     birthdayWish: {
         enabled: false,
-        template: { subject: 'Happy Birthday from {{hospitalName}}!', body: 'Dear {{patientName}},\n\n{{hospitalName}} wishes you a very happy birthday and a wonderful year ahead!\n\nWarmly,\nThe Team' }
+        template: { subject: 'Happy Birthday from {{hospitalName}}!', body: `Dear {{patientName}},
+
+{{hospitalName}} wishes you a very happy birthday and a wonderful year ahead!
+
+Warmly,
+The Team` }
     }
 };
 
@@ -132,12 +159,17 @@ const EditTemplateModal: React.FC<EditTemplateModalProps> = ({ isOpen, onClose, 
     );
 };
 
-const TemplatesView = () => {
-    const { user, updateNotificationSettings } = useAuth();
+const NotificationsScreen: React.FC = () => {
+    const { user, updateEmailSettings, updateNotificationSettings } = useAuth();
     const { addToast } = useToast();
     const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
+    const [emailSettings, setEmailSettings] = useState<EmailSettings>({
+        fromEmail: '',
+        apiKey: ''
+    });
     const [editing, setEditing] = useState<NotificationType | null>(null);
     const [testEmailLoading, setTestEmailLoading] = useState<NotificationType | null>(null);
+    const [loading, setLoading] = useState(false);
 
     const notificationList: {type: NotificationType; icon: IconDefinition; title: string; description: string;}[] = [
         {type: 'welcomeMessage', icon: faUser, title: 'Welcome Message', description: 'Send a welcome email when a new patient is registered.'},
@@ -153,10 +185,11 @@ const TemplatesView = () => {
                 ...defaultSettings,
                 ...JSON.parse(JSON.stringify(user.hospitalNotificationSettings)) // Deep merge
             }));
-        } else {
-            setSettings(defaultSettings);
         }
-    }, [user?.hospitalNotificationSettings]);
+        if (user?.hospitalEmailSettings) {
+            setEmailSettings(user.hospitalEmailSettings);
+        }
+    }, [user]);
 
     const handleToggle = async (type: NotificationType, enabled: boolean) => {
         const newSettings = { ...settings[type], enabled };
@@ -208,46 +241,73 @@ const TemplatesView = () => {
         }
         const notificationInfo = notificationList.find(n => n.type === type);
         if (!notificationInfo) return;
-    
+
         setTestEmailLoading(type);
-        const template = settings[type].template;
-        const testPatient = { name: "John Doe", email: user.email };
-        const testAppointment = { 
-            start: new Date(), 
-            doctorName: "Dr. Smith", 
-            treatmentName: "Test Checkup" 
-        };
-        const testInvoice = { invoiceId: "INV-TEST-001", totalAmount: 150.00 };
-    
+
         try {
-            const result = await sendEmail(
-                user.email,
-                template.subject,
-                template.body,
-                { 
-                    user, 
-                    patient: testPatient, 
-                    appointment: testAppointment,
-                    invoice: testInvoice
-                }
-            );
+            const result = await sendEmail(type, user);
+            
             if (result.success) {
-                addToast(`Test email for '${notificationInfo.title}' sent to ${user.email}. Check console for details.`, 'success');
+                addToast(result.message, 'success');
             } else {
-                addToast(`Failed to send test email: ${result.message}`, 'error');
+                addToast(result.message, 'error');
             }
-        } catch (error) {
-            addToast("An error occurred while sending the test email.", "error");
+        } catch (error: any) {
+            addToast(error.message || "An unexpected error occurred.", "error");
         } finally {
             setTestEmailLoading(null);
+        }
+    };
+
+    const handleSave = async () => {
+        setLoading(true);
+        try {
+            await updateEmailSettings(emailSettings);
+            addToast("Email configuration saved successfully!", "success");
+        } catch (error) {
+            addToast("Failed to save configuration.", "error");
+        } finally {
+            setLoading(false);
         }
     };
 
     const canWrite = user?.permissions?.notifications === 'write';
 
     return (
-        <div className="space-y-4">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
             {editing && <EditTemplateModal isOpen={true} onClose={() => setEditing(null)} onSave={handleSaveTemplate} onReset={handleResetTemplate} template={settings[editing].template} placeholders={placeholders[editing]} notificationType={editing}/>}
+            
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm">
+                <div className="p-6 space-y-4">
+                    <h2 className="text-xl font-bold">Email Configuration</h2>
+                    <Input 
+                        label="From Email" 
+                        type="email" 
+                        placeholder="notifications@yourhospital.com" 
+                        value={emailSettings.fromEmail} 
+                        onChange={e => setEmailSettings(s => ({ ...s, fromEmail: e.target.value }))} 
+                        required 
+                        disabled={!canWrite}
+                    />
+                    <Input 
+                        label="SendGrid API Key" 
+                        type="password" 
+                        value={emailSettings.apiKey} 
+                        onChange={e => setEmailSettings(s => ({ ...s, apiKey: e.target.value }))} 
+                        disabled={!canWrite}
+                    />
+                </div>
+                {canWrite && (
+                    <div className="flex justify-end gap-2 p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700">
+                        <Button variant="primary" onClick={handleSave} disabled={loading}>
+                            <FontAwesomeIcon icon={faSave} className="mr-2"/>
+                            {loading ? 'Saving...' : 'Save Configuration'}
+                        </Button>
+                    </div>
+                )}
+            </div>
+
+            <h2 className="text-xl font-bold pt-4">Notification Templates</h2>
             {notificationList.map(({ type, icon, title, description }) => (
                  <div key={type} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm">
                     <div className="p-6 flex justify-between items-start">
@@ -276,140 +336,6 @@ const TemplatesView = () => {
                     )}
                 </div>
             ))}
-        </div>
-    );
-}
-
-const ConfigurationView = () => {
-    const { user, updateEmailSettings } = useAuth();
-    const { addToast } = useToast();
-    const [settings, setSettings] = useState<EmailSettings>({
-        provider: 'default',
-        fromEmail: '',
-        smtp: { server: '', port: 587, username: '', password: '', encryption: 'starttls' },
-        apiKey: ''
-    });
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        // FIX: Explicitly type `defaults` object as `EmailSettings` to ensure the `provider` property is correctly typed, resolving the assignment error.
-        const defaults: EmailSettings = {
-            provider: 'default',
-            fromEmail: user?.email || '',
-            smtp: { server: '', port: 587, username: '', password: '', encryption: 'starttls' },
-            apiKey: ''
-        };
-        if (user?.hospitalEmailSettings) {
-            // FIX: Safely merge SMTP settings to prevent runtime errors if `user.hospitalEmailSettings.smtp` is undefined.
-            setSettings({ ...defaults, ...user.hospitalEmailSettings, smtp: { ...defaults.smtp!, ...(user.hospitalEmailSettings.smtp || {}) } });
-        } else {
-             setSettings(defaults);
-        }
-    }, [user]);
-
-    const handleSave = async () => {
-        setLoading(true);
-        try {
-            await updateEmailSettings(settings);
-            addToast("Email configuration saved successfully!", "success");
-        } catch (error) {
-            addToast("Failed to save configuration.", "error");
-        } finally {
-            setLoading(false);
-        }
-    };
-    
-    const handleTestConnection = async () => {
-        setLoading(true);
-        // Simulate an API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        console.log(`--- SIMULATING CONNECTION TEST ---`);
-        console.log(`Provider: ${settings.provider}`);
-        console.log('Settings used:', { ...settings, smtp: { ...settings.smtp, password: '***' }, apiKey: '***' });
-        console.log(`--- END SIMULATION ---`);
-        addToast("Test connection successful! Check developer console for details.", "success");
-        setLoading(false);
-    };
-
-    return (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm">
-            <div className="p-6 space-y-6">
-                <div>
-                    <Select label="Email Provider" value={settings.provider} onChange={e => setSettings(s => ({ ...s, provider: e.target.value as EmailProvider }))}>
-                        <option value="default">Default (Simulated)</option>
-                        <option value="smtp">SMTP</option>
-                        <option value="sendgrid">SendGrid</option>
-                        <option value="mailgun">Mailgun</option>
-                    </Select>
-                </div>
-
-                {settings.provider === 'default' && (
-                    <div className="p-4 text-center bg-slate-100 dark:bg-slate-800 rounded-lg">
-                        <p className="text-slate-600 dark:text-slate-400">Using the default notification service. Emails are simulated and will only appear in your browser's developer console. No configuration is needed.</p>
-                    </div>
-                )}
-                
-                {settings.provider !== 'default' && (
-                     <Input label="From Email" type="email" placeholder="notifications@yourhospital.com" value={settings.fromEmail} onChange={e => setSettings(s => ({ ...s, fromEmail: e.target.value }))} required />
-                )}
-
-                {settings.provider === 'smtp' && (
-                    <div className="space-y-4 p-4 border rounded-lg border-slate-200 dark:border-slate-700">
-                        <h4 className="font-semibold">SMTP Settings</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Input label="SMTP Server" value={settings.smtp?.server} onChange={e => setSettings(s => ({ ...s, smtp: { ...s.smtp!, server: e.target.value } }))} />
-                            <Input label="Port" type="number" value={settings.smtp?.port} onChange={e => setSettings(s => ({ ...s, smtp: { ...s.smtp!, port: parseInt(e.target.value) || 0 } }))} />
-                            <Input label="Username" value={settings.smtp?.username} onChange={e => setSettings(s => ({ ...s, smtp: { ...s.smtp!, username: e.target.value } }))} />
-                            <Input label="Password" type="password" value={settings.smtp?.password} onChange={e => setSettings(s => ({ ...s, smtp: { ...s.smtp!, password: e.target.value } }))} />
-                            <div className="md:col-span-2">
-                                <Select label="Encryption" value={settings.smtp?.encryption} onChange={e => setSettings(s => ({ ...s, smtp: { ...s.smtp!, encryption: e.target.value as any } }))}>
-                                    <option value="starttls">STARTTLS</option>
-                                    <option value="ssl_tls">SSL/TLS</option>
-                                    <option value="none">None</option>
-                                </Select>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {(settings.provider === 'sendgrid' || settings.provider === 'mailgun') && (
-                     <div className="space-y-4 p-4 border rounded-lg border-slate-200 dark:border-slate-700">
-                        <h4 className="font-semibold">{settings.provider === 'sendgrid' ? 'SendGrid' : 'Mailgun'} Settings</h4>
-                        <Input label="API Key" type="password" value={settings.apiKey} onChange={e => setSettings(s => ({ ...s, apiKey: e.target.value }))} />
-                    </div>
-                )}
-
-            </div>
-            {user?.permissions.notifications === 'write' && (
-                <div className="flex justify-end gap-2 p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700">
-                    <Button variant="light" onClick={handleTestConnection} disabled={loading || settings.provider === 'default'}>Test Connection</Button>
-                    <Button variant="primary" onClick={handleSave} disabled={loading}><FontAwesomeIcon icon={faSave} className="mr-2"/>Save Configuration</Button>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const NotificationsScreen: React.FC = () => {
-    const [activeTab, setActiveTab] = useState('templates');
-
-    const TabButton: React.FC<{ tabId: string; title: string; icon: any; }> = ({ tabId, title, icon }) => (
-        <button onClick={() => setActiveTab(tabId)} className={`flex items-center gap-2 whitespace-nowrap py-3 px-4 font-medium text-sm transition-colors border-b-2 ${activeTab === tabId ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600'}`}>
-            <FontAwesomeIcon icon={icon} /> {title}
-        </button>
-    );
-
-    return (
-        <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
-            <div className="border-b border-slate-200 dark:border-slate-800 mb-6">
-                <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-                    <TabButton tabId="templates" title="Templates" icon={faFileLines} />
-                    <TabButton tabId="configuration" title="Configuration" icon={faWrench} />
-                </nav>
-            </div>
-            
-            {activeTab === 'templates' && <TemplatesView />}
-            {activeTab === 'configuration' && <ConfigurationView />}
         </div>
     );
 };
