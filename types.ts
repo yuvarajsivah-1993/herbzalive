@@ -340,6 +340,12 @@ export interface Appointment {
   hospitalId: string;
   consultationType: ConsultationType;
   meetingStarted?: boolean; // New field to track if the meeting has been started by a doctor
+  videoCallActive?: boolean;
+  videoCallStartedByDoctor?: boolean;
+  videoCallChannel?: string;
+  callStartTime?: Timestamp;
+  doctorPhotoUrl?: string;
+  patientPhotoUrl?: string;
   // FIX: Added missing locationId property to Appointment type.
   locationId: string;
 }

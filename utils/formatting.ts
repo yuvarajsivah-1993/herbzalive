@@ -53,6 +53,17 @@ export const formatDateTime = (date: Date, dateFormat?: string, timeFormat?: str
   return `${formatDate(date, dateFormat)} ${formatTime(date, timeFormat)}`;
 };
 
+export const formatDuration = (seconds: number): string => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const parts = [];
+  if (h > 0) parts.push(h.toString());
+  parts.push(m.toString().padStart(2, '0'));
+  parts.push(s.toString().padStart(2, '0'));
+  return parts.join(':');
+};
+
 
 
 // --- Formatting Hook ---
@@ -68,12 +79,14 @@ export const useFormatting = () => {
   const formatTimeWrapper = (date: Date) => formatTime(date, timeFormat);
   const formatCurrencyWrapper = (amount: number) => formatCurrency(amount, currency);
   const formatDateTimeWrapper = (date: Date) => formatDateTime(date, dateFormat, timeFormat);
+  const formatDurationWrapper = (seconds: number) => formatDuration(seconds);
 
   return {
     formatDate: formatDateWrapper,
     formatTime: formatTimeWrapper,
     formatCurrency: formatCurrencyWrapper,
     formatDateTime: formatDateTimeWrapper,
+    formatDuration: formatDurationWrapper,
     dateFormat,
     timeFormat,
     currency,

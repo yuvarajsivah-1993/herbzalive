@@ -8,8 +8,9 @@ interface AlertModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  message: string;
+  message?: string; // Make message optional
   type?: 'success' | 'error';
+  children?: React.ReactNode; // Add children prop
 }
 
 const AlertModal: React.FC<AlertModalProps> = ({
@@ -18,6 +19,7 @@ const AlertModal: React.FC<AlertModalProps> = ({
   title,
   message,
   type = 'error',
+  children // Destructure children
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -54,9 +56,7 @@ const AlertModal: React.FC<AlertModalProps> = ({
               {title}
             </h3>
             <div className="mt-2">
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                {message}
-              </p>
+              {children || <p className="text-sm text-slate-500 dark:text-slate-400">{message}</p>}
             </div>
           </div>
         </div>
