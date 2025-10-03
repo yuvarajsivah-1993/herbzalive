@@ -168,7 +168,7 @@ const SignUpScreen: React.FC = () => {
         }
         
         await signup(userType === 'staff', isPatientActivation, formData, isPatientActivation ? (foundData as PatientDocument).id : undefined);
-        setStep(3); // Move to success screen
+        setStep(3); // Show success message
 
     } catch (error: any) {
         const errorMessage = error.message || 'An error occurred during sign up. Please try again.';
@@ -278,7 +278,7 @@ const SignUpScreen: React.FC = () => {
   }
 
   const getTitle = () => {
-    if (step === 1 || userType === 'new_hospital') return 'Create Your Hospital Account';
+    if (step === 1 || userType === 'new_hospital') return 'Create Your Account'; // Changed text here
     if (userType === 'patient') return 'Activate Your Patient Portal';
     if (userType === 'staff') return 'Complete Your Account';
     return 'Sign Up';

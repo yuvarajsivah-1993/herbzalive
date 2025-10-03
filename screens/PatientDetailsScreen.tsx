@@ -275,7 +275,7 @@ const PatientDetailsScreen: React.FC = () => {
 
     const pastAppointments = useMemo(() => {
         const now = new Date();
-        return appointments.filter(app => app.start.toDate() <= now);
+        return appointments.filter(app => app.start.toDate() <= now || app.status === 'Finished');
     }, [appointments]);
 
     const nextVisitDate = useMemo(() => {
@@ -733,7 +733,8 @@ const PatientDetailsScreen: React.FC = () => {
                     <DetailCard title="Past Appointments">
                         <div className="space-y-3">
                             {paginatedAppointments.length > 0 ? paginatedAppointments.map(appt => {
-                                const hasConsultation = consultations.some(c => c.appointmentId === appt.id);
+                                const consultation = consultations.find(c => c.appointmentId === appt.id);
+                                const hasConsultation = consultation && consultation.diagnosis && consultation.diagnosis.trim() !== '';
                                 return (
                                     <div key={appt.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
                                         <div>

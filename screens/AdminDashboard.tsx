@@ -210,8 +210,18 @@ const IncomeExpenseCard: React.FC<{ data: any, currency: string, period: Period,
     <Card>
         <div className="flex justify-between items-center"><h3 className="text-lg font-semibold">Income & Expense</h3><FilterDropdown value={period} onChange={onPeriodChange} /></div>
         <div className="grid grid-cols-2 gap-4 mt-4">
-            <div><p className="text-sm text-slate-500">TOTAL INCOME</p><div className="flex items-center gap-2"><p className={`font-bold ${incomeFontSize}`}>{formattedIncome}</p><span className="flex items-center text-sm font-semibold text-green-600"><FontAwesomeIcon icon={faArrowUp} className="w-3 h-3 mr-1" />{data.incomeChange.toFixed(2)}%</span></div></div>
-            <div><p className="text-sm text-slate-500">TOTAL EXPENSES</p><div className="flex items-center gap-2"><p className={`font-bold ${expenseFontSize}`}>{formattedExpenses}</p><span className="flex items-center text-sm font-semibold text-red-600"><FontAwesomeIcon icon={faArrowDown} className="w-3 h-3 mr-1" />{data.expenseChange.toFixed(2)}%</span></div></div>
+            <div><p className="text-sm text-slate-500">TOTAL INCOME</p><div className="flex items-center gap-2"><p className={`font-bold ${incomeFontSize}`}>{formattedIncome}</p>{data.incomeChange !== undefined && !isNaN(data.incomeChange) && (
+                <span className={`flex items-center text-sm font-semibold ${data.incomeChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <FontAwesomeIcon icon={data.incomeChange >= 0 ? faArrowUp : faArrowDown} className="w-3 h-3 mr-1" />
+                    {data.incomeChange.toFixed(2)}%
+                </span>
+            )}</div></div>
+            <div><p className="text-sm text-slate-500">TOTAL EXPENSES</p><div className="flex items-center gap-2"><p className={`font-bold ${expenseFontSize}`}>{formattedExpenses}</p>{data.expenseChange !== undefined && !isNaN(data.expenseChange) && (
+                <span className={`flex items-center text-sm font-semibold ${data.expenseChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <FontAwesomeIcon icon={data.expenseChange >= 0 ? faArrowUp : faArrowDown} className="w-3 h-3 mr-1" />
+                    {data.expenseChange.toFixed(2)}%
+                </span>
+            )}</div></div>
         </div>
         <div className="h-64 mt-4 -ml-6 flex-grow">
             <ResponsiveContainer width="100%" height="100%">
@@ -458,6 +468,69 @@ const AdminDashboard: React.FC = () => {
     
     const incomeExpenseData = useMemo(() => {
         const { start, end } = getDateRange(incomeExpensePeriod);
+        
+        // Calculate previous period
+        const getPreviousDateRange = (currentPeriod: Period) => {
+            const prevEnd = new Date(start.getTime() - 1);
+            let prevStart = new Date(start);
+
+            switch (currentPeriod) {
+                case 'this-week':
+                    prevStart.setDate(start.getDate() - 7);
+                    break;
+                case 'this-month':
+                    prevStart.setMonth(start.getMonth() - 1);
+                    break;
+                case 'last-3-months':
+                    prevStart.setMonth(start.getMonth() - 3);
+                    break;
+                case 'last-6-months':
+                    prevStart.setMonth(start.getMonth() - 6);
+                    break;
+                case 'last-12-months':
+                    prevStart.setFullYear(start.getFullYear() - 1);
+                    break;
+            }
+            return { start: prevStart, end: prevEnd };
+        };
+
+        const { start: prevStart, end: prevEnd } = getPreviousDateRange(incomeExpensePeriod);
+
+        const filterDataByDateRange = (data: any[], dateField: string, rangeStart: Date, rangeEnd: Date) => {
+            return data.filter(item => {
+                const itemDate = item[dateField].toDate();
+                return itemDate >= rangeStart && itemDate <= rangeEnd;
+            });
+        };
+
+        const calculateTotals = (invoices: Invoice[], posSales: POSSale[], expenses: Expense[]) => {
+            const totalTreatmentIncome = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+            const totalPosIncome = posSales.filter(sale => sale.status === 'Completed').reduce((sum, sale) => sum + sale.totalAmount, 0);
+            const totalIncome = totalTreatmentIncome + totalPosIncome;
+            const totalExpenses = expenses.reduce((sum, exp) => sum + exp.totalAmount, 0);
+            return { totalIncome, totalExpenses };
+        };
+
+        // Current period data
+        const currentInvoices = filterDataByDateRange(rawInvoices, 'createdAt', start, end);
+        const currentPOSSales = filterDataByDateRange(rawPOSSales, 'createdAt', start, end);
+        const currentExpenses = filterDataByDateRange(rawExpenses, 'date', start, end);
+        const currentTotals = calculateTotals(currentInvoices, currentPOSSales, currentExpenses);
+
+        // Previous period data
+        const prevInvoices = filterDataByDateRange(rawInvoices, 'createdAt', prevStart, prevEnd);
+        const prevPOSSales = filterDataByDateRange(rawPOSSales, 'createdAt', prevStart, prevEnd);
+        const prevExpenses = filterDataByDateRange(rawExpenses, 'date', prevStart, prevEnd);
+        const prevTotals = calculateTotals(prevInvoices, prevPOSSales, prevExpenses);
+
+        const incomeChange = prevTotals.totalIncome > 0 
+            ? ((currentTotals.totalIncome - prevTotals.totalIncome) / prevTotals.totalIncome) * 100 
+            : (currentTotals.totalIncome > 0 ? 100 : 0); // If previous was 0 and current is > 0, it's 100% increase
+
+        const expenseChange = prevTotals.totalExpenses > 0 
+            ? ((currentTotals.totalExpenses - prevTotals.totalExpenses) / prevTotals.totalExpenses) * 100 
+            : (currentTotals.totalExpenses > 0 ? 100 : 0); // If previous was 0 and current is > 0, it's 100% increase
+
         const dateArray: Date[] = [];
         let currentDate = new Date(start);
         while (currentDate <= end) { dateArray.push(new Date(currentDate)); currentDate.setMonth(currentDate.getMonth() + 1); if (dateArray.length > 12) break; }
@@ -466,37 +539,27 @@ const AdminDashboard: React.FC = () => {
         const dataMap = new Map<string, { treatmentIncome: number, posIncome: number, expenses: number }>();
         dateArray.forEach(date => dataMap.set(formatKey(date), { treatmentIncome: 0, posIncome: 0, expenses: 0 }));
     
-        rawInvoices.forEach(inv => {
+        currentInvoices.forEach(inv => {
             const invDate = inv.createdAt.toDate();
-            if (invDate >= start && invDate <= end) {
-                const key = formatKey(invDate);
-                if (dataMap.has(key)) dataMap.get(key)!.treatmentIncome += inv.totalAmount;
-            }
+            const key = formatKey(invDate);
+            if (dataMap.has(key)) dataMap.get(key)!.treatmentIncome += inv.totalAmount;
         });
-        rawPOSSales.forEach(sale => {
+        currentPOSSales.forEach(sale => {
             if (sale.status === 'Completed') {
                 const saleDate = sale.createdAt.toDate();
-                if (saleDate >= start && saleDate <= end) {
-                    const key = formatKey(saleDate);
-                    if (dataMap.has(key)) dataMap.get(key)!.posIncome += sale.totalAmount;
-                }
+                const key = formatKey(saleDate);
+                if (dataMap.has(key)) dataMap.get(key)!.posIncome += sale.totalAmount;
             }
         });
-        rawExpenses.forEach(exp => {
+        currentExpenses.forEach(exp => {
             const expDate = exp.date.toDate();
-            if (expDate >= start && expDate <= end) {
-                const key = formatKey(expDate);
-                if (dataMap.has(key)) dataMap.get(key)!.expenses += exp.totalAmount;
-            }
+            const key = formatKey(expDate);
+            if (dataMap.has(key)) dataMap.get(key)!.expenses += exp.totalAmount;
         });
     
         const chartData = Array.from(dataMap.entries()).map(([name, values]) => ({ name, treatmentIncome: values.treatmentIncome, posIncome: values.posIncome, expenses: values.expenses }));
-        const totalTreatmentIncome = chartData.reduce((sum, d) => sum + d.treatmentIncome, 0);
-        const totalPosIncome = chartData.reduce((sum, d) => sum + d.posIncome, 0);
-        const totalIncome = totalTreatmentIncome + totalPosIncome;
-        const totalExpenses = chartData.reduce((sum, d) => sum + d.expenses, 0);
-    
-        return { chartData, totalIncome, totalExpenses, incomeChange: 4.51, expenseChange: 2.41 };
+        
+        return { chartData, totalIncome: currentTotals.totalIncome, totalExpenses: currentTotals.totalExpenses, incomeChange, expenseChange };
     }, [incomeExpensePeriod, rawInvoices, rawExpenses, rawPOSSales]);
     
     const patientData = useMemo(() => {

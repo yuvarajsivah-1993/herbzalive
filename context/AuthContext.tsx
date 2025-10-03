@@ -26,7 +26,7 @@ const { serverTimestamp } = firebase.firestore.FieldValue;
 
 // FIX: Add missing properties for new modules to Permissions type.
 const allModulesWrite: Permissions = {
-  dashboard: 'write', reservations: 'write', patients: 'write', treatments: 'write', staff: 'write', accounts: 'write', sales: 'write', expenses: 'write', stocks: 'write', peripherals: 'write', report: 'write', appointments: 'write', doctors: 'write', profile: 'write', 'hospital-settings': 'write', 'invoice-settings': 'write', 'tax-rates': 'write', medicines: 'write', pos: 'write', 'pos-sales': 'write', notifications: 'write', vendors: 'write', payroll: 'write', 'payroll-settings': 'write',
+  dashboard: 'write', reservations: 'write', patients: 'write', treatments: 'write', staff: 'write', accounts: 'write', sales: 'write', expenses: 'write', stocks: 'write', peripherals: 'write', report: 'write', appointments: 'write', doctors: 'write', profile: 'write', 'hospital-settings': 'write', 'invoice-settings': 'write', 'tax-rates': 'write', medicines: 'write', pos: 'write', 'pos-sales': 'write', notifications: 'write', vendors: 'write', payroll: 'write', 'payroll-settings': 'write', 'bulk-operations': 'write', 'chat': 'write', 'subscription': 'write', 'locations': 'write',
 };
 
 const ownerPermissions = allModulesWrite;
@@ -42,7 +42,7 @@ const adminPermissions: Permissions = {
 
 // FIX: Add missing properties for new modules to Permissions type.
 const staffPermissions: Permissions = {
-  dashboard: 'read', reservations: 'write', patients: 'write', treatments: 'write', staff: 'none', accounts: 'read', sales: 'read', expenses: 'read', stocks: 'read', peripherals: 'write', report: 'none', appointments: 'write', doctors: 'write', profile: 'write', 'hospital-settings': 'none', 'invoice-settings': 'none', 'tax-rates': 'none', medicines: 'read', pos: 'write', 'pos-sales': 'write', notifications: 'none', vendors: 'read', payroll: 'none', 'payroll-settings': 'none',
+  dashboard: 'read', reservations: 'write', patients: 'write', treatments: 'write', staff: 'none', accounts: 'read', sales: 'read', expenses: 'read', stocks: 'read', peripherals: 'write', report: 'none', appointments: 'write', doctors: 'write', profile: 'write', 'hospital-settings': 'none', 'invoice-settings': 'none', 'tax-rates': 'none', medicines: 'read', pos: 'write', 'pos-sales': 'write', notifications: 'none', vendors: 'read', payroll: 'none', 'payroll-settings': 'none', 'bulk-operations': 'none', 'chat': 'none', 'subscription': 'none', 'locations': 'none',
 };
 
 // FIX: Add missing properties for new modules to Permissions type.
@@ -60,7 +60,7 @@ const doctorPermissions: Permissions = {
     peripherals: 'none',
     report: 'none',
     appointments: 'write',
-    profile: 'write', 'hospital-settings': 'none', 'invoice-settings': 'none', 'tax-rates': 'none', medicines: 'read', pos: 'none', 'pos-sales': 'none', notifications: 'none', vendors: 'none', payroll: 'none', 'payroll-settings': 'none',
+    profile: 'write', 'hospital-settings': 'none', 'invoice-settings': 'none', 'tax-rates': 'none', medicines: 'read', pos: 'none', 'pos-sales': 'none', notifications: 'none', vendors: 'none', payroll: 'none', 'payroll-settings': 'none', 'bulk-operations': 'none', 'chat': 'none', 'subscription': 'none', 'locations': 'none',
 };
 
 const defaultIndividualSettings: IndividualInvoiceSettings = {
@@ -513,6 +513,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 hospitalEmployeeDepartments: hospitalData.employeeDepartments || [],
                 hospitalEmployeeDesignations: hospitalData.employeeDesignations || [],
                 hospitalEmployeeShifts: hospitalData.employeeShifts || [],
+                hospitalOnboardingComplete: hospitalData.onboardingComplete || false,
                 assignedLocations: userDocData.assignedLocations || [], // Ensure it's always an array
                 currentLocation: null, // Explicitly set to null initially
             };
@@ -1006,6 +1007,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     });
   }, [setUser]);
 
+  const completeHospitalOnboarding = useCallback(async (hospitalId: string) => {
+    if (!user || user.hospitalId !== hospitalId) {
+      console.error("User not authorized to complete onboarding for this hospital.");
+      return;
+    }
+    try {
+      await db.collection('hospitals').doc(hospitalId).update({
+        onboardingComplete: true,
+      });
+      setUser(prevUser => {
+        if (!prevUser) return null;
+        return { ...prevUser, hospitalOnboardingComplete: true };
+      });
+      await createAuditLog(
+        user,
+        'UPDATE',
+        'HOSPITAL',
+        hospitalId,
+        'Hospital onboarding completed.'
+      );
+    } catch (error) {
+      console.error("Error completing hospital onboarding:", error);
+      throw error;
+    }
+  }, [user]);
+
   // Instantiate management hooks
   const superAdminMgmt = useSuperAdmin(user);
   const subscriptionMgmt = useSubscriptionManagement(user, setUser);
@@ -1044,6 +1071,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     ...settingsMgmt,
     // FIX: Add payroll management functions to the context value to match AuthContextType.
     ...payrollMgmt,
+    completeHospitalOnboarding,
   }), [
       user, loading, login, signup, logout, sendPasswordResetEmail,
       invoiceToPrint,
@@ -1054,8 +1082,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       allHospitals, allSubscriptionPackages, allSubscriptionTransactions,
       superAdminMgmt, subscriptionMgmt, userMgmt, clinicMgmt,
       patientCareMgmt, financialMgmt, inventoryMgmt, settingsMgmt,
-      // FIX: Add payrollMgmt to the dependency array.
-      payrollMgmt
+      payrollMgmt, completeHospitalOnboarding
   ]);
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;

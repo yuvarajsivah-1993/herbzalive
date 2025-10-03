@@ -281,7 +281,7 @@ const ConsultationScreen: React.FC = () => {
     };
     
     const renderVideoCallButton = () => {
-        if (!appointment || appointment.consultationType !== 'online' || user?.roleName !== 'doctor') return null;
+        if (!appointment || appointment.consultationType !== 'online' || user?.roleName !== 'doctor' || appointment.status === 'Finished') return null;
 
         if (appointment.videoCallActive) {
             return <Button onClick={handleJoinCall} disabled={isJoiningCall} icon={<FontAwesomeIcon icon={faVideo} className="mr-2" />}>{isJoiningCall ? 'Rejoining...' : 'Rejoin Call'}</Button>;

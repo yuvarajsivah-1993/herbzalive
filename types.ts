@@ -9,7 +9,7 @@ export type PermissionLevel = 'none' | 'read' | 'write';
 // A mapping of module keys to their permission levels.
 // These keys are derived from the route paths.
 // FIX: Add 'medicines' to AppModules to support the Medicines screen.
-export type AppModules = 'dashboard' | 'reservations' | 'patients' | 'treatments' | 'staff' | 'accounts' | 'sales' | 'expenses' | 'stocks' | 'peripherals' | 'report' | 'appointments' | 'doctors' | 'profile' | 'hospital-settings' | 'invoice-settings' | 'tax-rates' | 'medicines' | 'pos' | 'pos-sales' | 'notifications' | 'vendors' | 'payroll' | 'payroll-settings';
+export type AppModules = 'dashboard' | 'reservations' | 'patients' | 'treatments' | 'staff' | 'accounts' | 'sales' | 'expenses' | 'stocks' | 'peripherals' | 'report' | 'appointments' | 'doctors' | 'profile' | 'hospital-settings' | 'invoice-settings' | 'tax-rates' | 'medicines' | 'pos' | 'pos-sales' | 'notifications' | 'vendors' | 'payroll' | 'payroll-settings' | 'chat' | 'bulk-operations';
 
 export type Permissions = Record<AppModules, PermissionLevel>;
 
@@ -219,10 +219,13 @@ export interface AppUser {
   hospitalEmployeeDepartments?: string[];
   hospitalEmployeeDesignations?: string[];
   hospitalEmployeeShifts?: string[];
+  hospitalOnboardingComplete?: boolean;
   // Multi-location support
   assignedLocations?: string[];
   currentLocation?: HospitalLocation | null;
   hospitalLocations?: HospitalLocation[];
+  status?: 'online' | 'offline';
+  lastOnline?: Timestamp;
 }
 
 // This represents the user document stored in Firestore
@@ -237,11 +240,12 @@ export interface UserDocument {
   roleName: 'owner' | 'admin' | 'staff' | 'doctor';
   hospitalId: string;
   hospitalSlug: string;
-  status: 'active' | 'invited' | 'inactive';
+  status: 'active' | 'invited' | 'inactive' | 'online' | 'offline';
   isSuperAdmin?: boolean;
   doctorId?: string;
   // FIX: Added assignedLocations to UserDocument to fix type error in AuthContext.
   assignedLocations: string[]; // Location IDs
+  lastOnline?: Timestamp;
 }
 
 export interface PatientMedicalInfo {
@@ -712,6 +716,7 @@ export interface StockItem {
   category: string;
   sku: string;
   vendor: string;
+  brand?: string; // Added brand field
   hospitalId: string;
   unitType: string;
   description: string;
@@ -920,6 +925,24 @@ export interface NewStockTransferData {
     notes?: string;
 }
 
+export interface StockImportRow {
+  name: string;
+  category: string;
+  sku: string;
+  vendorName: string;
+  unitTypeName: string;
+  description: string;
+  taxName?: string;
+  hsnCode?: string;
+  locationName: string;
+  lowStockThreshold: number;
+  batchNumber: string;
+  expiryDate?: string; // YYYY-MM-DD
+  quantity: number;
+  costPrice: number;
+  salePrice: number;
+}
+
 export interface POSSaleItem {
     stockItemId: string;
     batchId: string;
@@ -999,7 +1022,7 @@ export interface SubscriptionTransaction {
 export interface NewSubscriptionTransactionData {
   paymentId: string;
   orderId?: string;
-  signature?: string;
+  signature?: string; // From Razorpay
   packageId: string;
   packageName: string;
   amount: number;
@@ -1572,4 +1595,7 @@ export interface AuthContextType {
   invoiceToPrint: { invoice: Invoice | POSSale; type: 'Treatment' | 'POS' } | null;
   setInvoiceToPrint: (data: { invoice: Invoice | POSSale; type: 'Treatment' | 'POS' } | null) => void;
   getUsersForHospital: () => Promise<UserDocument[]>;
+  updateUserStatus: (userId: string, status: 'online' | 'offline') => Promise<void>;
+  updateUserLastOnline: (userId: string, timestamp: Timestamp) => Promise<void>;
+  completeHospitalOnboarding: (hospitalId: string) => Promise<void>;
 }

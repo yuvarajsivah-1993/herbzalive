@@ -1,0 +1,25 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // --- General Read Access ---
+    match /{allPaths=**} {
+      allow read: if request.auth != null;
+    }
+
+    // --- User Profile Photos ---
+    match /profilePhotos/{userId}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // --- Hospital Logos ---
+    match /hospitalLogos/{ownerId}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == ownerId;
+    }
+
+    // --- Default Deny Write Access ---
+    match /{allPaths=**} {
+      allow write: if false;
+    }
+  }
+}

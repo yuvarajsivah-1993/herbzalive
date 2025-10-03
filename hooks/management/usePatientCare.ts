@@ -300,6 +300,25 @@ export const usePatientCare = (user: AppUser | null, uploadFile: UploadFileFunct
         };
 
         await newAppointmentRef.set(appointmentData);
+
+        // Create a corresponding consultation document
+        await db.collection("consultations").add({
+            appointmentId: newAppointmentRef.id,
+            patientId: data.patientId,
+            doctorId: data.doctorId,
+            hospitalId: user.hospitalId,
+            patientName: patientDoc.data()!.name,
+            doctorName: doctorDoc.data()!.name,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            investigation: '',
+            diagnosis: '',
+            prescribedMedicines: [],
+            labTests: [],
+            allergies: '',
+            advice: '',
+        });
+
         await createAuditLog(user, 'CREATE', 'APPOINTMENT', newAppointmentRef.id, `Scheduled ${data.consultationType} appointment for ${patientDoc.data()!.name} with Dr. ${doctorDoc.data()!.name}.`);
     }, [user]);
 

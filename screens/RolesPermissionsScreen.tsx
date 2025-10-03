@@ -9,19 +9,17 @@ import { faSave, faUndo, faShieldAlt, faExclamationTriangle } from '@fortawesome
 // Hardcoded default permissions (copied from AuthContext for reset functionality)
 // FIX: Add missing 'payroll' permission to the default permissions object.
 const allModulesWrite: Permissions = {
-  dashboard: 'write', reservations: 'write', patients: 'write', treatments: 'write', staff: 'write', accounts: 'write', sales: 'write', expenses: 'write', stocks: 'write', peripherals: 'write', report: 'write', appointments: 'write', doctors: 'write', profile: 'write', 'hospital-settings': 'write', 'invoice-settings': 'write', 'tax-rates': 'write', medicines: 'write', pos: 'write', 'pos-sales': 'write', notifications: 'write', vendors: 'write', payroll: 'write', 'payroll-settings': 'write',
+  dashboard: 'write', reservations: 'write', patients: 'write', treatments: 'write', staff: 'write', accounts: 'write', sales: 'write', expenses: 'write', stocks: 'write', peripherals: 'write', report: 'write', appointments: 'write', doctors: 'write', profile: 'write', 'hospital-settings': 'write', 'invoice-settings': 'write', 'tax-rates': 'write', medicines: 'write', pos: 'write', 'pos-sales': 'write', notifications: 'write', vendors: 'write', payroll: 'write', 'payroll-settings': 'write', 'bulk-operations': 'write', 'chat': 'write', 'subscription': 'write', 'locations': 'write',
 };
 const adminPermissionsDefault: Permissions = {
   ...allModulesWrite,
   'hospital-settings': 'none', 'invoice-settings': 'none', 'tax-rates': 'none', notifications: 'none',
 };
-// FIX: Add missing 'payroll' permission to the default permissions object.
 const staffPermissionsDefault: Permissions = {
-  dashboard: 'read', reservations: 'write', patients: 'write', treatments: 'write', staff: 'none', accounts: 'read', sales: 'read', expenses: 'read', stocks: 'read', peripherals: 'write', report: 'none', appointments: 'write', doctors: 'write', profile: 'write', 'hospital-settings': 'none', 'invoice-settings': 'none', 'tax-rates': 'none', medicines: 'read', pos: 'write', 'pos-sales': 'write', notifications: 'none', vendors: 'read', payroll: 'none', 'payroll-settings': 'none',
+  dashboard: 'read', reservations: 'write', patients: 'write', treatments: 'write', staff: 'none', accounts: 'read', sales: 'read', expenses: 'read', stocks: 'read', peripherals: 'write', report: 'none', appointments: 'write', doctors: 'write', profile: 'write', 'hospital-settings': 'none', 'invoice-settings': 'none', 'tax-rates': 'none', medicines: 'read', pos: 'write', 'pos-sales': 'write', notifications: 'none', vendors: 'read', payroll: 'none', 'payroll-settings': 'none', 'bulk-operations': 'none', 'chat': 'none', 'subscription': 'none', 'locations': 'none',
 };
-// FIX: Add missing 'payroll' permission to the default permissions object.
 const doctorPermissionsDefault: Permissions = {
-  dashboard: 'read', reservations: 'write', patients: 'write', treatments: 'read', doctors: 'none', staff: 'none', accounts: 'none', sales: 'none', expenses: 'none', stocks: 'none', peripherals: 'none', report: 'none', appointments: 'write', profile: 'write', 'hospital-settings': 'none', 'invoice-settings': 'none', 'tax-rates': 'none', medicines: 'read', pos: 'none', 'pos-sales': 'none', notifications: 'none', vendors: 'none', payroll: 'none', 'payroll-settings': 'none',
+  dashboard: 'read', reservations: 'write', patients: 'write', treatments: 'read', doctors: 'none', staff: 'none', accounts: 'none', sales: 'none', expenses: 'none', stocks: 'none', peripherals: 'none', report: 'none', appointments: 'write', profile: 'write', 'hospital-settings': 'none', 'invoice-settings': 'none', 'tax-rates': 'none', medicines: 'read', pos: 'none', 'pos-sales': 'none', notifications: 'none', vendors: 'none', payroll: 'none', 'payroll-settings': 'none', 'bulk-operations': 'none', 'chat': 'none', 'subscription': 'none', 'locations': 'none',
 };
 
 const defaultPermissionsMap: Record<EditableRole, Permissions> = {
@@ -30,31 +28,34 @@ const defaultPermissionsMap: Record<EditableRole, Permissions> = {
     doctor: doctorPermissionsDefault,
 };
 
-const MODULE_DEFINITIONS: { key: AppModules, name: string, description: string }[] = [
-    { key: 'dashboard', name: 'Dashboard', description: 'View the main dashboard panels and statistics.' },
-    { key: 'reservations', name: 'Reservations', description: 'Access and manage the appointment calendar.' },
-    { key: 'patients', name: 'Patients', description: 'Create, view, and edit patient records.' },
-    { key: 'treatments', name: 'Treatments', description: 'Manage the list of available medical treatments.' },
-    { key: 'doctors', name: 'Doctors', description: 'Manage doctor profiles and schedules.' },
-    { key: 'staff', name: 'User Management', description: 'Manage staff and admin user accounts (excluding owner).' },
-    { key: 'accounts', name: 'Accounts', description: 'View financial accounts information.' },
-    { key: 'sales', name: 'Sales', description: 'Manage treatment invoices and payments.' },
-    { key: 'pos', name: 'Point of Sale (POS)', description: 'Access the POS interface to create new sales.' },
-    { key: 'pos-sales', name: 'POS Sales', description: 'View history of all POS sales.' },
-    { key: 'expenses', name: 'Expenses', description: 'Manage and track hospital expenses.' },
-    { key: 'payroll', name: 'Payroll', description: 'Run payroll and manage employee salaries.' },
-    { key: 'payroll-settings', name: 'Payroll Settings', description: 'Configure salary components and groups.' },
-    { key: 'stocks', name: 'Stocks', description: 'Manage product inventory, orders, and returns.' },
-    { key: 'vendors', name: 'Vendors', description: 'Manage supplier and vendor information.' },
-    { key: 'peripherals', name: 'Peripherals', description: 'Manage hospital equipment and assets.' },
-    { key: 'report', name: 'Report', description: 'Access and generate financial and operational reports.' },
-    { key: 'appointments', name: 'Appointments', description: 'View and manage list of all appointments.' },
-    { key: 'profile', name: 'My Profile', description: 'Allows users to view and edit their own profile.' },
-    { key: 'medicines', name: 'Medicines', description: 'Manage the master list of medicines.' },
-    { key: 'notifications', name: 'Notification Settings', description: 'Configure automated email notifications.' },
-    { key: 'hospital-settings', name: 'Hospital Settings', description: 'Edit core hospital details and subscription.' },
-    { key: 'invoice-settings', name: 'Invoice Settings', description: 'Configure invoice templates and numbering.' },
-    { key: 'tax-rates', name: 'Tax Rates', description: 'Manage tax rates and groups.' },
+const MODULE_DEFINITIONS: { key: AppModules, name: string, description: string, group: string }[] = [
+    { key: 'dashboard', name: 'Dashboard', description: 'View the main dashboard panels and statistics.', group: 'Main' },
+    { key: 'reservations', name: 'Reservations', description: 'Access and manage the appointment calendar.', group: 'Main' },
+    { key: 'appointments', name: 'Appointments', description: 'View and manage list of all appointments.', group: 'Main' },
+    { key: 'patients', name: 'Patients', description: 'Create, view, and edit patient records.', group: 'Clinical' },
+    { key: 'treatments', name: 'Treatments', description: 'Manage the list of available medical treatments.', group: 'Clinical' },
+    { key: 'doctors', name: 'Doctors', description: 'Manage doctor profiles and schedules.', group: 'Clinical' },
+    { key: 'staff', name: 'User Management', description: 'Manage staff and admin user accounts (excluding owner)..', group: 'Staff & Users' },
+    { key: 'payroll', name: 'Payroll', description: 'Run payroll and manage employee salaries.', group: 'Staff & Users' },
+    { key: 'accounts', name: 'Accounts', description: 'View financial accounts information.', group: 'Financial' },
+    { key: 'sales', name: 'Sales', description: 'Manage treatment invoices and payments.', group: 'Financial' },
+    { key: 'pos', name: 'Point of Sale (POS)', description: 'Access the POS interface to create new sales.', group: 'Financial' },
+    { key: 'pos-sales', name: 'POS Sales', description: 'View history of all POS sales.', group: 'Financial' },
+    { key: 'expenses', name: 'Expenses', description: 'Manage and track hospital expenses.', group: 'Financial' },
+    { key: 'stocks', name: 'Stocks', description: 'Manage product inventory, orders, and returns.', group: 'Inventory' },
+    { key: 'vendors', name: 'Vendors', description: 'Manage supplier and vendor information.', group: 'Inventory' },
+    { key: 'chat', name: 'Chat', description: 'Enable real-time chat between staff members.', group: 'Tools & Comms' },
+    { key: 'bulk-operations', name: 'Bulk Operations', description: 'Perform bulk data import/export operations.', group: 'Tools & Comms' },
+    { key: 'hospital-settings', name: 'Hospital Settings', description: 'Edit core hospital details.', group: 'Settings' },
+    { key: 'locations', name: 'Locations', description: 'Manage different hospital branches/locations.', group: 'Settings' },
+    { key: 'invoice-settings', name: 'Invoice Settings', description: 'Configure invoice templates and numbering.', group: 'Settings' },
+    { key: 'tax-rates', name: 'Tax Rates', description: 'Manage tax rates and groups.', group: 'Settings' },
+    { key: 'notifications', name: 'Notification Settings', description: 'Configure automated email notifications.', group: 'Settings' },
+    { key: 'subscription', name: 'Subscription', description: 'Manage hospital subscription plan.', group: 'Settings' },
+    { key: 'peripherals', name: 'Peripherals', description: 'Manage hospital equipment and assets.', group: 'Settings' },
+    { key: 'profile', name: 'My Profile', description: 'Allows users to view and edit their own profile.', group: 'Settings' },
+    { key: 'medicines', name: 'Medicines', description: 'Manage the master list of medicines.', group: 'Settings' },
+    { key: 'payroll-settings', name: 'Payroll Settings', description: 'Configure salary components and groups.', group: 'Settings' },
 ];
 
 
@@ -174,31 +175,48 @@ const RolesPermissionsScreen: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                            {MODULE_DEFINITIONS.map(({ key, name, description }) => (
-                                <tr key={key}>
-                                    <td className="px-4 py-3">
-                                        <p className="font-medium text-slate-800 dark:text-slate-200">{name}</p>
-                                        <p className="text-sm text-slate-500">{description}</p>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <fieldset className="flex items-center gap-4">
-                                            <legend className="sr-only">Permission for {name}</legend>
-                                            {(['none', 'read', 'write'] as PermissionLevel[]).map(level => (
-                                                <div key={level} className="flex items-center">
-                                                    <input 
-                                                        id={`${key}-${level}`} 
-                                                        name={`${key}-permission`}
-                                                        type="radio" 
-                                                        checked={currentRolePermissions[key] === level}
-                                                        onChange={() => handlePermissionChange(key, level)}
-                                                        className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                    />
-                                                    <label htmlFor={`${key}-${level}`} className="ml-2 block text-sm text-slate-700 dark:text-slate-300 capitalize">{level}</label>
-                                                </div>
-                                            ))}
-                                        </fieldset>
-                                    </td>
-                                </tr>
+                            {Object.entries(
+                                MODULE_DEFINITIONS.reduce((acc, module) => {
+                                    if (!acc[module.group]) {
+                                        acc[module.group] = [];
+                                    }
+                                    acc[module.group].push(module);
+                                    return acc;
+                                }, {} as Record<string, typeof MODULE_DEFINITIONS>)
+                            ).map(([groupName, modules]) => (
+                                <React.Fragment key={groupName}>
+                                    <tr>
+                                        <td colSpan={2} className="px-4 py-3 bg-slate-100 dark:bg-slate-800">
+                                            <h4 className="font-semibold text-slate-800 dark:text-slate-200">{groupName}</h4>
+                                        </td>
+                                    </tr>
+                                    {modules.map(({ key, name, description }) => (
+                                        <tr key={key}>
+                                            <td className="px-4 py-3">
+                                                <p className="font-medium text-slate-800 dark:text-slate-200">{name}</p>
+                                                <p className="text-sm text-slate-500">{description}</p>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <fieldset className="flex items-center gap-4">
+                                                    <legend className="sr-only">Permission for {name}</legend>
+                                                    {(['none', 'read', 'write'] as PermissionLevel[]).map(level => (
+                                                        <div key={level} className="flex items-center">
+                                                            <input 
+                                                                id={`${key}-${level}`} 
+                                                                name={`${key}-permission`}
+                                                                type="radio" 
+                                                                checked={currentRolePermissions[key] === level}
+                                                                onChange={() => handlePermissionChange(key, level)}
+                                                                className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                            <label htmlFor={`${key}-${level}`} className="ml-2 block text-sm text-slate-700 dark:text-slate-300 capitalize">{level}</label>
+                                                        </div>
+                                                    ))}
+                                                </fieldset>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </React.Fragment>
                             ))}
                         </tbody>
                     </table>

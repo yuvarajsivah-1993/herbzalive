@@ -23,7 +23,8 @@ import {
     faFileMedical, 
     faUser, 
     faList, 
-    faTh
+    faTh,
+    faVideo
 } from '@fortawesome/free-solid-svg-icons';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { useToast } from '../hooks/useToast';
@@ -371,6 +372,7 @@ const AppointmentCard: React.FC<{ appointment: Appointment, onClick: (e: React.M
             <div className="flex flex-col h-full text-xs">
                 <div className="flex justify-between items-start">
                     <p className="font-semibold truncate">
+                        {appointment.consultationType === 'online' && <FontAwesomeIcon icon={faVideo} className="mr-2" />}
                         {appointment.patientName}
                     </p>
                     <div className="flex items-center flex-shrink-0"><FontAwesomeIcon icon={style.icon} className="mr-1" /><span>{style.label}</span></div>
@@ -466,7 +468,7 @@ const WeekView: React.FC<{ currentDate: Date; doctors: DoctorDocument[]; appoint
                         {Array.from({ length: calendarEndHour - calendarStartHour }).map((_, i) => (<div key={i} className="h-[80px] border-b border-slate-200 dark:border-slate-800" />))}
                         {appointmentsByDay[date.toDateString()].map(app => {
                             const start = app.start.toDate(); const end = app.end.toDate(); const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60); const top = ((start.getHours() - calendarStartHour) * 60 + start.getMinutes()) / 60 * HOUR_HEIGHT_PX; const height = (durationMinutes / 60) * HOUR_HEIGHT_PX; const doctorColor = doctorColors[app.doctorId] || '#64748b';
-                            return (<div key={app.id} onClick={() => onAppointmentClick(app)} onContextMenu={(e) => onAppointmentContextMenu(e, app)} className="absolute w-[95%] left-[2.5%] p-2 rounded-lg text-white overflow-hidden shadow-sm cursor-pointer hover:ring-2 ring-offset-2 dark:ring-offset-slate-900" style={{ top: `${top}px`, height: `${height}px`, backgroundColor: doctorColor, borderLeft: `4px solid ${doctorColor}`, '--tw-ring-color': doctorColor } as React.CSSProperties}><p className="text-xs font-bold truncate">{app.patientName}</p><p className="text-xs opacity-90 truncate">{app.doctorName}</p><p className="text-xs opacity-90 truncate">{app.treatmentName}</p></div>);
+                            return (<div key={app.id} onClick={() => onAppointmentClick(app)} onContextMenu={(e) => onAppointmentContextMenu(e, app)} className="absolute w-[95%] left-[2.5%] p-2 rounded-lg text-white overflow-hidden shadow-sm cursor-pointer hover:ring-2 ring-offset-2 dark:ring-offset-slate-900" style={{ top: `${top}px`, height: `${height}px`, backgroundColor: doctorColor, borderLeft: `44px solid ${doctorColor}`, '--tw-ring-color': doctorColor } as React.CSSProperties}><p className="text-xs font-bold truncate">{app.consultationType === 'online' && <FontAwesomeIcon icon={faVideo} className="mr-1" />} {app.patientName}</p><p className="text-xs opacity-90 truncate">{app.doctorName}</p><p className="text-xs opacity-90 truncate">{app.treatmentName}</p></div>);
                         })}
                     </div>
                 </div>
@@ -519,6 +521,7 @@ const AppointmentList: React.FC<{
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Doctor</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date & Time</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Treatment</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Type</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
                             </tr>
                         </thead>
@@ -529,6 +532,7 @@ const AppointmentList: React.FC<{
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{app.doctorName}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{app.start.toDate().toLocaleString()}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{app.treatmentName}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{app.consultationType === 'online' ? <FontAwesomeIcon icon={faVideo} className="text-blue-500" /> : 'Direct'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(app.status)}</td>
                                 </tr>
                             ))}

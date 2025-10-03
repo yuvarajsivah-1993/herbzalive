@@ -4,7 +4,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Appointment, Consultation, Invoice, PatientDocument } from '../types';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUsers, faCalendarCheck, faHourglassHalf, faFileInvoiceDollar, faArrowRight, faStethoscope } from '@fortawesome/free-solid-svg-icons';
+import { faUsers, faCalendarCheck, faHourglassHalf, faFileInvoiceDollar, faArrowRight, faStethoscope, faVideo } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import Avatar from '../components/ui/Avatar';
 import Button from '../components/ui/Button';
@@ -60,7 +60,7 @@ const AppointmentCard: React.FC<{ appointment: Appointment, patient?: PatientDoc
         <div className={`flex items-center p-4 rounded-lg transition-all ${isNext ? 'bg-blue-50 dark:bg-blue-900/50 border-l-4 border-blue-500' : 'bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800'}`}>
             <Avatar avatar={patient?.profilePhotoUrl ? { type: 'image', value: patient.profilePhotoUrl } : { type: 'initials', value: patient?.name.split(' ').map(n=>n[0]).join('').toUpperCase() || '?', color: 'bg-indigo-500' }} size="md" />
             <div className="ml-4 flex-grow">
-                <p className="font-semibold text-slate-800 dark:text-slate-200">{patient?.name}</p>
+                <p className="font-semibold text-slate-800 dark:text-slate-200">{appointment.consultationType === 'online' && <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-500" />} {patient?.name}</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">{formatTime(appointment.start.toDate())} - {formatTime(appointment.end.toDate())}</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">{appointment.treatmentName}</p>
             </div>

@@ -1,20 +1,15 @@
 import React, { useRef, useEffect } from 'react';
 import Button from './Button';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 
 interface ConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
   title: string;
-// FIX: Made message optional and added children to support custom content.
-  message?: string;
-  children?: React.ReactNode;
-  confirmButtonText?: string;
-  confirmButtonVariant?: 'primary' | 'danger';
-  loading?: boolean;
-  zIndex?: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  confirmVariant?: 'primary' | 'danger' | 'success' | 'warning' | 'info' | 'light' | 'dark' | 'text';
 }
 
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
@@ -23,11 +18,9 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   onConfirm,
   title,
   message,
-  children,
-  confirmButtonText = 'Confirm',
-  confirmButtonVariant = 'primary',
-  loading = false,
-  zIndex = 'z-50',
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+  confirmVariant = 'danger',
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -48,41 +41,34 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-60 ${zIndex} flex justify-center items-center`}>
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center">
       <div ref={modalRef} className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md m-4 p-6">
         <div className="flex items-start">
-          <div className={`mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full ${confirmButtonVariant === 'danger' ? 'bg-red-100 dark:bg-red-900/50' : 'bg-blue-100 dark:bg-blue-900/50'} sm:mx-0 sm:h-10 sm:w-10`}>
-             <FontAwesomeIcon icon={faExclamationTriangle} className={`h-6 w-6 ${confirmButtonVariant === 'danger' ? 'text-red-600' : 'text-blue-600'}`} aria-hidden="true" />
-          </div>
-          <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+          <div className="mt-3 text-center sm:mt-0 sm:text-left">
             <h3 className="text-lg leading-6 font-bold text-slate-900 dark:text-slate-100" id="modal-title">
               {title}
             </h3>
             <div className="mt-2">
-              {children ? children : (
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {message}
-                </p>
-              )}
+              <p className="text-sm text-slate-500 dark:text-slate-400">{message}</p>
             </div>
           </div>
         </div>
-        <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse gap-2">
+        <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
           <Button
             type="button"
-            variant={confirmButtonVariant}
+            variant={confirmVariant}
             onClick={onConfirm}
-            disabled={loading}
+            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm"
           >
-            {loading ? 'Processing...' : confirmButtonText}
+            {confirmText}
           </Button>
           <Button
             type="button"
             variant="light"
             onClick={onClose}
-            disabled={loading}
+            className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 sm:mt-0 sm:w-auto sm:text-sm"
           >
-            Cancel
+            {cancelText}
           </Button>
         </div>
       </div>

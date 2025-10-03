@@ -159,7 +159,13 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
             });
 
             if (appDoc && appDoc.exists && appointmentRef) {
-                t.update(appointmentRef, { status: 'Finished' });
+                t.update(appointmentRef, { 
+                    status: 'Finished',
+                    videoCallChannel: null,
+                    videoCallToken: null,
+                    videoCallStartedByDoctor: false,
+                    videoCallActive: false
+                });
             }
         });
     }, [user]);
@@ -195,11 +201,16 @@ export const useFinancialManagement = (user: AppUser | null, uploadFile: UploadF
             const paymentStatus: InvoiceStatus = finalAmountPaid >= totalAmount ? 'Paid' : finalAmountPaid > 0 ? 'Partially Paid' : 'Unpaid';
             
             // --- WRITES ---
-            t.update(invoiceRef, { paymentHistory: newPayments, amountPaid: finalAmountPaid, status: paymentStatus });
-
             if (appDoc && appDoc.exists && appointmentRef) {
                 const newAppointmentStatus = paymentStatus === 'Paid' ? 'Finished' : 'Waiting Payment';
-                t.update(appointmentRef, { status: newAppointmentStatus });
+                const updateData: {status: string, videoCallChannel?: null, videoCallToken?: null, videoCallStartedByDoctor?: boolean, videoCallActive?: boolean} = { status: newAppointmentStatus };
+                if (newAppointmentStatus === 'Finished') {
+                    updateData.videoCallChannel = null;
+                    updateData.videoCallToken = null;
+                    updateData.videoCallStartedByDoctor = false;
+                    updateData.videoCallActive = false;
+                }
+                t.update(appointmentRef, updateData);
             }
         });
     }, []);

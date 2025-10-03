@@ -1,10 +1,9 @@
-
 import { useCallback } from 'react';
 import { db, storage } from '../../services/firebase';
 import firebase from 'firebase/compat/app';
 // FIX: Added Timestamp to imports to allow type casting.
 // FIX: Import the 'StockTransfer' type to resolve 'Cannot find name' errors.
-import { AppUser, StockItem, NewStockItemData, StockMovement, StockOrder, NewStockOrderData, StockOrderItem, StockOrderStatus, Peripheral, NewPeripheralData, PeripheralUpdateData, PeripheralAttachment, Vendor, NewVendorData, VendorUpdateData, StockAttachment, Timestamp, StockOrderComment, Tax, TaxGroup, StockReturn, NewStockReturnData, StockReturnItem, InvoiceStatus, Payment, StockItemUpdateData, StockBatch, StockLocationInfo, InitialBatchDetails, NewStockTransferData, StockTransfer, StockTransferItem } from '../../types';
+import { AppUser, StockItem, NewStockItemData, StockMovement, StockOrder, NewStockOrderData, StockOrderItem, StockOrderStatus, Peripheral, NewPeripheralData, PeripheralUpdateData, PeripheralAttachment, Vendor, NewVendorData, VendorUpdateData, StockAttachment, Timestamp, StockOrderComment, Tax, TaxGroup, StockReturn, NewStockReturnData, StockReturnItem, InvoiceStatus, Payment, StockItemUpdateData, StockBatch, StockLocationInfo, InitialBatchDetails, NewStockTransferData, StockTransfer, StockTransferItem, StockImportRow } from '../../types';
 
 const { serverTimestamp, increment } = firebase.firestore.FieldValue;
 type UploadFileFunction = (file: File | Blob, path: string) => Promise<string>;
@@ -109,6 +108,7 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
     
             const dataToSet: Omit<StockItem, 'id' | 'totalStock' | 'lowStockThreshold' | 'batches'> = {
                 ...restData,
+                brand: data.brand,
                 photoUrl,
                 hospitalId: user.hospitalId!,
                 locationStock,
@@ -121,8 +121,11 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
         if (!user || !user.hospitalId || !user.currentLocation) throw new Error("User or location not set");
         const stockDocRef = db.collection('stocks').doc(stockId);
         
-        const { photo, lowStockThreshold, batches, ...restData } = data;
+        const { photo, lowStockThreshold, batches, brand, ...restData } = data;
         const updateData: { [key: string]: any } = { ...restData };
+        if (brand !== undefined) {
+            updateData.brand = brand;
+        }
         
         const docSnap = await stockDocRef.get();
         if (!docSnap.exists) throw new Error("Stock item not found");
@@ -1140,6 +1143,159 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
         await db.collection('vendors').doc(vendorId).update({ status });
     }, [user]);
 
+    const bulkImportStockWithProgress = useCallback(async (stockData: any[], onProgress: (progress: number) => void) => {
+        if (!user || !user.hospitalId) throw new Error("User not authenticated");
+
+        const results: { successCount: number; errorCount: number; errors: { row: any; message: string }[] } = {
+            successCount: 0,
+            errorCount: 0,
+            errors: [],
+        };
+
+        const total = stockData.length;
+        let processed = 0;
+
+        for (let i = 0; i < stockData.length; i++) {
+            const row = stockData[i];
+            const rowNumber = i + 2; // +1 for 0-based index to 1-based row, +1 for header row
+            try {
+                const batch = db.batch();
+                // 1. Basic Validation
+                if (!row.name || !row.category || !row.sku || !row.vendor || !row.unitType || !row.locationId || !row.quantity || !row.costPrice || !row.salePrice || !row.batchNumber) {
+                    throw new Error("Missing required fields.");
+                }
+
+                // 2. Data Type Validation
+                const quantity = Number(row.quantity);
+                const costPrice = Number(row.costPrice);
+                const salePrice = Number(row.salePrice);
+                const lowStockThreshold = Number(row.lowStockThreshold || 10);
+
+                if (isNaN(quantity) || isNaN(costPrice) || isNaN(salePrice) || isNaN(lowStockThreshold) || quantity <= 0 || costPrice <= 0 || salePrice <= 0) {
+                    throw new Error("Invalid numerical values or quantities.");
+                }
+
+                // 5. Expiry Date Validation (if provided)
+                let expiryTimestamp: Timestamp | undefined = undefined;
+                if (row.expiryDate) {
+                    const date = new Date(row.expiryDate);
+                    if (isNaN(date.getTime())) {
+                        throw new Error("Invalid expiryDate format (expected YYYY-MM-DD).");
+                    }
+                    if (date < new Date()) {
+                        throw new Error("Expiry date cannot be in the past.");
+                    }
+                    expiryTimestamp = firebase.firestore.Timestamp.fromDate(date);
+                }
+
+                // Find existing stock item or create new one
+                let stockItemRef: firebase.firestore.DocumentReference;
+                let existingStockItem: StockItem | null = null;
+
+                const existingStockQuery = await db.collection('stocks')
+                    .where('hospitalId', '==', user.hospitalId)
+                    .where('sku', '==', row.sku)
+                    .limit(1)
+                    .get();
+
+                if (!existingStockQuery.empty) {
+                    stockItemRef = existingStockQuery.docs[0].ref;
+                    existingStockItem = { id: existingStockQuery.docs[0].id, ...existingStockQuery.docs[0].data() } as StockItem;
+                } else {
+                    stockItemRef = db.collection('stocks').doc();
+                }
+
+                const newBatch: StockBatch = {
+                    id: db.collection('_').doc().id,
+                    batchNumber: row.batchNumber,
+                    expiryDate: expiryTimestamp,
+                    quantity: quantity,
+                    costPrice: costPrice,
+                    salePrice: salePrice,
+                };
+
+                const locationStockInfo: StockLocationInfo = existingStockItem?.locationStock?.[row.locationId] || {
+                    totalStock: 0,
+                    lowStockThreshold: lowStockThreshold,
+                    batches: [],
+                };
+
+                // Check for existing batch within the same location
+                const existingBatchIndex = locationStockInfo.batches.findIndex(b => b.batchNumber === row.batchNumber);
+
+                if (existingBatchIndex > -1) {
+                    // Update existing batch
+                    locationStockInfo.batches[existingBatchIndex] = { ...newBatch };
+                } else {
+                    // Add new batch
+                    locationStockInfo.batches.push(newBatch);
+                }
+
+                // Recalculate total stock for the location
+                locationStockInfo.totalStock = locationStockInfo.batches.reduce((sum, b) => sum + b.quantity, 0);
+
+                const updatedLocationStock = {
+                    ...(existingStockItem?.locationStock || {}),
+                    [row.locationId]: locationStockInfo,
+                };
+
+                if (existingStockItem) {
+                    // Update existing stock item
+                    batch.update(stockItemRef, {
+                        name: row.name,
+                        category: row.category,
+                        vendor: row.vendor,
+                        brand: row.brand,
+                        unitType: row.unitType,
+                        description: row.description,
+                        taxId: row.taxId || null,
+                        hsnCode: row.hsnCode || null,
+                        locationStock: updatedLocationStock,
+                    });
+                } else {
+                    // Create new stock item
+                    const newStockItemData: Omit<StockItem, 'id' | 'totalStock' | 'lowStockThreshold' | 'batches'> = {
+                        name: row.name,
+                        category: row.category,
+                        sku: row.sku,
+                        vendor: row.vendor,
+                        brand: row.brand,
+                        unitType: row.unitType,
+                        description: row.description,
+                        photoUrl: '',
+                        hospitalId: user.hospitalId,
+                        taxId: row.taxId || null,
+                        hsnCode: row.hsnCode || null,
+                        locationStock: updatedLocationStock,
+                    };
+                    batch.set(stockItemRef, newStockItemData);
+                }
+
+                // Record Stock Movement
+                const movementRef = stockItemRef.collection('movements').doc();
+                batch.set(movementRef, {
+                    date: serverTimestamp() as Timestamp,
+                    type: 'initial',
+                    quantityChange: quantity,
+                    cost: costPrice,
+                    notes: `Bulk import for batch ${row.batchNumber}`,
+                    batchNumber: row.batchNumber,
+                    locationId: row.locationId,
+                });
+
+                await batch.commit();
+                results.successCount++;
+            } catch (error: any) {
+                results.errorCount++;
+                results.errors.push({ row: rowNumber, field: 'N/A', message: error.message });
+            }
+            processed++;
+            onProgress((processed / total) * 100);
+        }
+
+        return results;
+    }, [user]);
+
     return {
         getStocks, getStockItemById, addStock, updateStock, deleteStock, getStockMovements, adjustStockQuantity,
         addStockTransfer, getStockTransfers,
@@ -1152,5 +1308,6 @@ export const useInventoryManagement = (user: AppUser | null, uploadFile: UploadF
         addExpenseCategory, deleteExpenseCategory,
         getPeripherals, getPeripheralById, addPeripheral, updatePeripheral, deletePeripheral,
         getVendors, getVendorById, addVendor, updateVendor, deleteVendor, updateVendorStatus,
+        bulkImportStockWithProgress,
     };
 }

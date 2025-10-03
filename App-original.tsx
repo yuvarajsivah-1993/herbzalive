@@ -68,6 +68,7 @@ import { AddVendorModal } from './screens/VendorsScreen';
 import { NewAppointmentData, PatientDocument, DoctorDocument, Treatment, NewPatientData, NewDoctorData, NewTreatmentData, DayOfWeek, SubscriptionPackage, NewStockItemData, NewVendorData, A4Design, ThermalDesign, Invoice, POSSale, ConsultationType } from './types';
 import { SearchableOption, SearchableSelect } from './screens/ReservationsScreen';
 import { useToast } from './hooks/useToast';
+import { useFormatting } from './utils/formatting';
 import Button from './components/ui/Button';
 import Input from './components/ui/Input';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -88,40 +89,67 @@ import PatientNewAppointmentScreen from './screens/patient/PatientNewAppointment
 import PatientProfileScreen from './screens/patient/PatientProfileScreen';
 import SupportScreen from './screens/SupportScreen';
 import ChatScreen from './screens/ChatScreen';
-import BulkOperationsScreen from './screens/BulkOperationsScreen';
 import OnboardingModal from './components/ui/OnboardingModal';
+import BulkOperationsScreen from './screens/BulkOperationsScreen';
 
 const DAY_NAMES: DayOfWeek[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const routeTitles: { [key: string]: string } = {
+  'dashboard': 'Dashboard',
+  'reservations': 'Reservations',
+  'patients': 'Patient',
+  'treatments': 'Treatments',
+  'doctors': 'Doctors',
+  'staff': 'User Management',
+  'accounts': 'Accounts',
+  'sales': 'Sales',
+  'pos': 'Point of Sale',
+  'pos-sales': 'POS Sales',
+  'expenses': 'Expenses',
+  'payroll': 'Payroll',
+  'stocks': 'Stocks',
+  'vendors': 'Vendors',
+  'peripherals': 'Peripherals',
+  'report': 'Report',
+  'appointments': 'Appointments',
+  'profile': 'My Profile',
+  'hospital-settings': 'Hospital Settings',
+  'locations': 'Locations',
+  'invoice-settings': 'Invoice Settings',
+  'tax-rates': 'Tax Rates',
+  'notifications': 'Notification Settings',
+  'subscription': 'Subscription',
+  'chat': 'Chat',
+};
+
 // --- Add Reservation Modal ---
-// This is a new, self-contained modal for creating reservations from anywhere in the app.
 interface AddReservationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (data: NewAppointmentData) => Promise<void>;
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (data: NewAppointmentData) => Promise<void>;
+    currentLocation: any; // Replace 'any' with actual type
+    patients: any[]; // Replace 'any' with actual type
+    doctors: any[]; // Replace 'any' with actual type
+    treatments: any[]; // Replace 'any' with actual type
+    getAppointments: (start: Date, end: Date) => Promise<any[]>; // Replace 'any' with actual type
 }
 
-const AddReservationModal: React.FC<AddReservationModalProps> = ({ isOpen, onClose, onSave }) => {
-    const { patients, doctors, treatments, getAppointments, currentLocation } = useAuth();
-
-    // Form state
-    const [patientId, setPatientId] = useState('');
-    const [doctorId, setDoctorId] = useState('');
-    const [treatmentId, setTreatmentId] = useState('');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [time, setTime] = useState('');
-    const [consultationType, setConsultationType] = useState<ConsultationType>('direct');
-
-    // State for available time slots
-    const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-    const [loadingSlots, setLoadingSlots] = useState(false);
-
-    const [isSubmitting, setIsSubmitting] = useState(false);
+const AddReservationModal: React.FC<AddReservationModalProps> = ({ isOpen, onClose, onSave, currentLocation, patients, doctors, treatments, getAppointments }) => {
+    const DAY_NAMES: DayOfWeek[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const [error, setError] = useState('');
     const { addToast } = useToast();
     const { formatTime } = useFormatting();
     const modalRef = useRef<HTMLDivElement>(null);
-    
+
+    const [doctorId, setDoctorId] = useState<string | null>(null);
+    const [date, setDate] = useState<string | null>(null);
+    const [treatmentId, setTreatmentId] = useState<string | null>(null);
+    const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+    const [loadingSlots, setLoadingSlots] = useState(false);
+    const [time, setTime] = useState<string | null>(null);
+    const [patientId, setPatientId] = useState<string | null>(null);
+    const [consultationType, setConsultationType] = useState<ConsultationType>('direct');
+
     const activePatients = useMemo(() => {
         if (!currentLocation) return [];
         return patients.filter(p => p.status === 'active' && p.locationId === currentLocation.id);
@@ -134,77 +162,17 @@ const AddReservationModal: React.FC<AddReservationModalProps> = ({ isOpen, onClo
         ), [doctors, currentLocation]
     );
 
-    // Effect to calculate available time slots
-    useEffect(() => {
-        const calculateSlots = async () => {
-            if (!doctorId || !date || !treatmentId) {
-                setAvailableSlots([]);
-                setTime('');
-                return;
-            }
-            setLoadingSlots(true);
-            setAvailableSlots([]);
-            setTime('');
+    const patientOptions: SearchableOption[] = useMemo(() => activePatients.map(p => ({ value: p.id, label: p.name, secondaryLabel: `ID: ${p.patientId}` })), [activePatients]);
+    const doctorOptions: SearchableOption[] = useMemo(() => activeDoctors.map(d => ({ value: d.id!, label: d.name, secondaryLabel: d.specialty })), [activeDoctors]);
 
-            try {
-                const doctor = activeDoctors.find(d => d.id === doctorId);
-                const selectedTreatment = treatments.find(t => t.id === treatmentId);
-                if (!doctor || !selectedTreatment) {
-                     setAvailableSlots([]);
-                     return;
-                };
-
-                // FIX: Construct date carefully to avoid timezone issues with `new Date(string)`
-                const [year, month, day] = date.split('-').map(Number);
-                const selectedDateObj = new Date(year, month - 1, day);
-
-                const dayStart = new Date(selectedDateObj); dayStart.setHours(0, 0, 0, 0);
-                const dayEnd = new Date(selectedDateObj); dayEnd.setHours(23, 59, 59, 999);
-                
-                const allAppointmentsForDay = await getAppointments(dayStart, dayEnd);
-                const doctorAppointments = allAppointmentsForDay.filter(app => app.doctorId === doctorId && app.status !== 'Cancelled');
-                
-                const dayOfWeek = DAY_NAMES[selectedDateObj.getDay()];
-                const workingHour = doctor.workingHours[dayOfWeek];
-
-                if (!workingHour) {
-                    setAvailableSlots([]);
-                    return;
-                }
-                
-                const treatmentDurationMs = selectedTreatment.duration * 60000;
-                const allSlots: Date[] = [];
-                const [startH, startM] = workingHour.start.split(':').map(Number);
-                const [endH, endM] = workingHour.end.split(':').map(Number);
-
-                let currentSlot = new Date(year, month - 1, day, startH, startM);
-                const endTime = new Date(year, month - 1, day, endH, endM);
-
-                while (currentSlot.valueOf() + treatmentDurationMs <= endTime.valueOf()) {
-                    allSlots.push(new Date(currentSlot));
-                    currentSlot.setMinutes(currentSlot.getMinutes() + doctor.slotInterval);
-                }
-                
-                const available = allSlots.filter(slot => {
-                    const slotEnd = new Date(slot.getTime() + treatmentDurationMs);
-                    return !doctorAppointments.some(app => {
-                        const appStart = app.start.toDate();
-                        const appEnd = app.end.toDate();
-                        return (appStart < slotEnd) && (appEnd > slot);
-                    });
-                });
-                setAvailableSlots(available.map(slot => formatTime(slot)));
-            } catch (err) {
-                console.error("Failed to calculate slots:", err);
-                addToast("Could not calculate available time slots.", "error");
-                setAvailableSlots([]);
-            } finally {
-                setLoadingSlots(false);
-            }
-        };
-
-        calculateSlots();
-    }, [doctorId, date, treatmentId, treatments, activeDoctors, getAppointments, addToast]);
+    const availableTreatments = useMemo(() => {
+        if (!doctorId) return [];
+        const doctor = activeDoctors.find(d => d.id === doctorId);
+        if (!doctor) return [];
+        return treatments.filter(t => t.id && doctor.assignedTreatments.includes(t.id));
+    }, [doctorId, activeDoctors, treatments]);
+    
+    const treatmentOptions: SearchableOption[] = useMemo(() => availableTreatments.map(t => ({ value: t.id!, label: t.name, secondaryLabel: `${t.duration} min` })), [availableTreatments]);
 
 
     useEffect(() => {
@@ -213,9 +181,103 @@ const AddReservationModal: React.FC<AddReservationModalProps> = ({ isOpen, onClo
                 onClose();
             }
         };
-        if (isOpen) document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        } else {
+            document.removeEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
     }, [isOpen, onClose]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-[999] flex justify-center items-center p-4" onClick={handleClose}>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md m-4 p-6 text-center transform transition-all" ref={modalRef} onClick={e => e.stopPropagation()}>
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-4">Add New Reservation</h3>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {error && <p className="text-red-500 text-sm">{error}</p>}
+                    <div>
+                        <label htmlFor="patient-select" className="block text-left text-sm font-medium text-slate-700 dark:text-slate-300">Patient</label>
+                        <SearchableSelect
+                            id="patient-select"
+                            options={patientOptions}
+                            value={patientId}
+                            onChange={(value) => setPatientId(value)}
+                            placeholder="Select Patient"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="doctor-select" className="block text-left text-sm font-medium text-slate-700 dark:text-slate-300">Doctor</label>
+                        <SearchableSelect
+                            id="doctor-select"
+                            options={doctorOptions}
+                            value={doctorId}
+                            onChange={(value) => setDoctorId(value)}
+                            placeholder="Select Doctor"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="treatment-select" className="block text-left text-sm font-medium text-slate-700 dark:text-slate-300">Treatment</label>
+                        <SearchableSelect
+                            id="treatment-select"
+                            options={treatmentOptions}
+                            value={treatmentId}
+                            onChange={(value) => setTreatmentId(value)}
+                            placeholder="Select Treatment"
+                            isDisabled={!doctorId}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="date-input" className="block text-left text-sm font-medium text-slate-700 dark:text-slate-300">Date</label>
+                        <Input
+                            id="date-input"
+                            type="date"
+                            value={date || ''}
+                            onChange={(e) => setDate(e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="time-select" className="block text-left text-sm font-medium text-slate-700 dark:text-slate-300">Time</label>
+                        <Select
+                            id="time-select"
+                            options={availableSlots.map(slot => ({ value: slot, label: slot }))}
+                            value={time || ''}
+                            onChange={(e) => setTime(e.target.value)}
+                            placeholder={loadingSlots ? "Loading slots..." : "Select Time"}
+                            isDisabled={!date || !doctorId || !treatmentId || loadingSlots}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="consultation-type-select" className="block text-left text-sm font-medium text-slate-700 dark:text-slate-300">Consultation Type</label>
+                        <Select
+                            id="consultation-type-select"
+                            options={[{ value: 'direct', label: 'Direct' }, { value: 'online', label: 'Online' }]}
+                            value={consultationType}
+                            onChange={(e) => setConsultationType(e.target.value as ConsultationType)}
+                        />
+                    </div>
+                    <div className="flex justify-end space-x-3 mt-6">
+                        <Button type="button" variant="light" onClick={handleClose} disabled={isSubmitting}>Cancel</Button>
+                        <Button type="submit" variant="primary" disabled={isSubmitting}>
+                            {isSubmitting ? <FontAwesomeIcon icon={faSpinner} spin className="mr-2" /> : null}
+                            Add Reservation
+                        </Button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    const activeDoctors = useMemo(() =>
+        doctors.filter(d =>
+            d.status === 'active' &&
+            currentLocation && d.assignedLocations && d.assignedLocations.includes(currentLocation.id)
+        ), [doctors, currentLocation]
+    );
 
     const patientOptions: SearchableOption[] = useMemo(() => activePatients.map(p => ({ value: p.id, label: p.name, secondaryLabel: `ID: ${p.patientId}` })), [activePatients]);
     const doctorOptions: SearchableOption[] = useMemo(() => activeDoctors.map(d => ({ value: d.id!, label: d.name, secondaryLabel: d.specialty })), [activeDoctors]);
@@ -301,53 +363,8 @@ const AddReservationModal: React.FC<AddReservationModalProps> = ({ isOpen, onClo
             setIsSubmitting(false);
         }
     };
-    
-    if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
-            <div ref={modalRef} className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-2xl m-4">
-                <form onSubmit={handleSubmit}>
-                    <div className="flex justify-between items-center p-6 border-b border-slate-200 dark:border-slate-800">
-                        <h2 className="text-xl font-bold">Add Reservation</h2>
-                        <button type="button" onClick={handleClose} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
-                            <FontAwesomeIcon icon={faTimes} className="w-5 h-5 text-slate-500" />
-                        </button>
-                    </div>
-                    <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-                        {error && <p className="text-sm text-red-500 bg-red-100 dark:bg-red-900/50 p-3 rounded-lg">{error}</p>}
-                        <>
-                            <SearchableSelect label="Patient*" options={patientOptions} value={patientId} onChange={setPatientId} placeholder="Search patients..." />
-                            <SearchableSelect label="Doctor*" options={doctorOptions} value={doctorId} onChange={(val) => { setDoctorId(val); setTreatmentId(''); }} placeholder="Search doctors..." />
-                            <SearchableSelect label="Treatment*" options={treatmentOptions} value={treatmentId} onChange={setTreatmentId} placeholder="Select treatment..." disabled={!doctorId} />
-                            <div className="grid grid-cols-2 gap-4">
-                                <Input label="Date*" type="date" value={date} onChange={e => setDate(e.target.value)} />
-                                <div className="relative">
-                                    <Select label="Time*" value={time} onChange={e => setTime(e.target.value)} disabled={!doctorId || !date || loadingSlots || !treatmentId}>
-                                        <option value="" disabled>{loadingSlots ? 'Loading...' : 'Select a time'}</option>
-                                        {availableSlots.map(slot => <option key={slot} value={slot}>{slot}</option>)}
-                                    </Select>
-                                    {loadingSlots && <FontAwesomeIcon icon={faSpinner} className="animate-spin absolute right-10 top-10 text-slate-400" />}
-                                </div>
-                            </div>
-                            <Select label="Consultation Type*" value={consultationType} onChange={e => setConsultationType(e.target.value as ConsultationType)}>
-                                <option value="direct">Direct Visit</option>
-                                <option value="online">Online Consultation</option>
-                            </Select>
-                        </>
-                    </div>
-                    <div className="flex justify-end space-x-3 p-6 bg-slate-50 dark:bg-slate-950/50 border-t">
-                        <Button type="button" variant="light" onClick={handleClose}>Cancel</Button>
-                        <Button type="submit" variant="primary" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save Reservation'}</Button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-interface SubscriptionExpiredModalProps {
-  isOpen: boolean;
+interface SubscriptionExpiredModalProps {  isOpen: boolean;
 }
 
 const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> = ({ isOpen }) => {
@@ -513,7 +530,7 @@ interface SubscriptionReminderModalProps {
   planInterval?: string;
 }
 
-import { useFormatting } from '@/utils/formatting';
+
 
 const SubscriptionReminderModal: React.FC<SubscriptionReminderModalProps> = ({ isOpen, onClose, onRenew, expiryDate, planName, planInterval }) => {
   const { formatDate } = useFormatting();
@@ -733,35 +750,6 @@ const App: React.FC = () => {
   );
 };
 
-const routeTitles: { [key: string]: string } = {
-  'dashboard': 'Dashboard',
-  'reservations': 'Reservations',
-  'patients': 'Patient',
-  'treatments': 'Treatments',
-  'doctors': 'Doctors',
-  'staff': 'User Management',
-  'accounts': 'Accounts',
-  'sales': 'Sales',
-  'pos': 'Point of Sale',
-  'pos-sales': 'POS Sales',
-  'expenses': 'Expenses',
-  'payroll': 'Payroll',
-  'stocks': 'Stocks',
-  'vendors': 'Vendors',
-  'peripherals': 'Peripherals',
-  'report': 'Report',
-  'appointments': 'Appointments',
-  'profile': 'My Profile',
-  'hospital-settings': 'Hospital Settings',
-  'locations': 'Locations',
-  'invoice-settings': 'Invoice Settings',
-  'tax-rates': 'Tax Rates',
-  'notifications': 'Notification Settings',
-  'subscription': 'Subscription',
-  'chat': 'Chat',
-};
-
-
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
@@ -830,14 +818,16 @@ const AppContent: React.FC = () => {
 
 type ActiveModal = 'patient' | 'doctor' | 'treatment' | 'reservation' | 'stockItem' | 'vendor' | null;
 
-import { useDoctors, useTreatments, useClinicManagement } from './hooks/management/useClinicManagement';
-import { useFileUpload } from './hooks/useFileUpload';
-import { usePatientCare } from './hooks/management/usePatientCare';
 
+
+
+
+import { useDoctors, useTreatments } from './hooks/management/useClinicManagement';
+import { useFileUpload } from './hooks/useFileUpload';
 
 
 const ProtectedLayout: React.FC = () => {
-  const { user, addAppointment, addPatient, addDoctor, addStock, addVendor, initiatePaymentForPackage, getAppointments } = useAuth();
+  const { user, addAppointment, addPatient, addDoctor, addStock, addVendor, initiatePaymentForPackage } = useAuth();
   const { hospitalSlug } = useParams<{ hospitalSlug: string }>();
   const location = useLocation();
   const navigate = useNavigate();
@@ -845,8 +835,8 @@ const ProtectedLayout: React.FC = () => {
   const { uploadFile } = useFileUpload();
 
   const { patients } = usePatientCare(user, uploadFile);
-  const { doctors, addDoctor: addDoctorHook } = useClinicManagement(user, uploadFile);
-  const { treatments, addTreatment } = useClinicManagement(user, uploadFile);
+  const { doctors } = useClinicManagement(user, uploadFile);
+  const { treatments } = useClinicManagement(user, uploadFile);
 
   // State for centralized modal management
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
@@ -988,7 +978,7 @@ const ProtectedLayout: React.FC = () => {
             const resource = err.message.split(':')[1] || 'items';
             setUpgradeModalInfo({
                 isOpen: true,
-                message: `You\'ve reached the maximum number of ${resource} for your plan. Please upgrade to add more.`
+                message: `You've reached the maximum number of ${resource} for your plan. Please upgrade to add more.`
             });
             closeModal();
         } else {
@@ -1067,11 +1057,11 @@ const ProtectedLayout: React.FC = () => {
               <Route path="profile" element={<ProfileScreen />} />
               <Route path="hospital-settings" element={<HospitalSettingsScreen />} />
               <Route path="locations" element={<HospitalLocationsScreen />} />
+              <Route path="bulk-operations" element={<BulkOperationsScreen />} />
               <Route path="invoice-settings" element={<InvoiceSettingsScreen />} />
               <Route path="tax-rates" element={<TaxRatesScreen />} />
               <Route path="notifications" element={<NotificationsScreen />} />
               <Route path="chat" element={<ChatScreen />} />
-              <Route path="bulk-operations" element={<BulkOperationsScreen />} />
               <Route path="*" element={<NotFoundScreen />} />
             </Routes>
         </main>
@@ -1082,6 +1072,11 @@ const ProtectedLayout: React.FC = () => {
         isOpen={activeModal === 'reservation'}
         onClose={closeModal}
         onSave={(data: NewAppointmentData) => handleGenericSave(addAppointment, data, 'Reservation')}
+        currentLocation={user?.hospital?.currentLocation} 
+        patients={patients}
+        doctors={doctors}
+        treatments={treatments}
+        getAppointments={getAppointments}
       />
       <AddPatientModal
         isOpen={activeModal === 'patient'}

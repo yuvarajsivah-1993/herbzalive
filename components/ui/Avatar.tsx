@@ -26,7 +26,6 @@ const Avatar: React.FC<AvatarProps> = ({ avatar, size = 'md', className = '' }) 
   if (avatar.type === 'image') {
     return (
       <img
-        // FIX: Apply the className prop to allow custom sizing.
         className={`rounded-full object-cover ${sizeClasses[size]} ${className}`}
         src={avatar.value}
         alt="User avatar"
@@ -36,8 +35,7 @@ const Avatar: React.FC<AvatarProps> = ({ avatar, size = 'md', className = '' }) 
 
   return (
     <div
-      // FIX: Apply the className prop to allow custom sizing.
-      className={`flex items-center justify-center rounded-full text-white font-semibold ${sizeClasses[size]} ${avatar.color || ''} ${className}`}
+      className={`flex items-center justify-center rounded-full text-white font-semibold ${sizeClasses[size]} ${avatar.color || 'bg-blue-500'} ${className}`}
     >
       <span className={textSizeClasses[size]}>{avatar.value}</span>
     </div>

@@ -7,7 +7,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faShieldHeart, faBuilding, faTachometerAlt, faCalendarDays, faUsers, faStethoscope, faUser,
   faCreditCard, faChartLine, faBox, faDesktop, faChartPie,
-  faCog, faMapMarkedAlt, faFileInvoice, faPercent, faMoneyBillWave, faCashRegister, faReceipt, faBell, faTruck, faFileInvoiceDollar
+  faCog, faMapMarkedAlt, faFileInvoice, faPercent, faMoneyBillWave, faCashRegister, faReceipt, faBell, faTruck, faFileInvoiceDollar, faComments, faFileCsv
 } from '@fortawesome/free-solid-svg-icons';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 
@@ -33,6 +33,7 @@ const clinicNav: NavItem[] = [
   { name: 'Treatments', href: '/treatments', icon: faStethoscope, module: 'treatments' },
   { name: 'Doctors', href: '/doctors', icon: faStethoscope, module: 'doctors' },
   { name: 'User Management', href: '/staff', icon: faUser, module: 'staff' },
+  { name: 'Chat', href: '/chat', icon: faComments, module: 'chat' },
 ];
 
 const financeNav: NavItem[] = [
@@ -54,6 +55,7 @@ const physicalAssetNav: NavItem[] = [
 const settingsNav: NavItem[] = [
     { name: 'Hospital Settings', href: '/hospital-settings', icon: faCog, module: 'hospital-settings' },
     { name: 'Locations', href: '/locations', icon: faMapMarkedAlt, module: 'hospital-settings' },
+    { name: 'Bulk Operations', href: '/bulk-operations', icon: faFileCsv, module: 'bulk-operations' },
     { name: 'Invoice Settings', href: '/invoice-settings', icon: faFileInvoice, module: 'invoice-settings' },
     { name: 'Tax rates', href: '/tax-rates', icon: faPercent, module: 'tax-rates' },
     { name: 'Notifications', href: '/notifications', icon: faBell, module: 'notifications' },
